@@ -1,0 +1,19 @@
+# 데이터베이스 설정 파일
+db.asp
+
+# 개발 환경 관련 파일
+*.suo
+*.user
+*.sln.docstates
+
+# 로그 파일
+*.log
+
+# 임시 파일
+Thumbs.db
+desktop.ini
+ehthumbs.db
+.DS_Store
+
+# 기타 민감한 정보
+*.config 

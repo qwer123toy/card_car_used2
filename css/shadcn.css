@@ -1,0 +1,304 @@
+/* shadcn UI 스타일 CSS */
+:root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+}
+
+.dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+}
+
+/* shadcn 버튼 스타일 */
+.shadcn-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.shadcn-btn-primary {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border: 1px solid transparent;
+}
+
+.shadcn-btn-primary:hover {
+    opacity: 0.9;
+}
+
+.shadcn-btn-secondary {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+    border: 1px solid transparent;
+}
+
+.shadcn-btn-secondary:hover {
+    opacity: 0.9;
+}
+
+.shadcn-btn-outline {
+    background-color: transparent;
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground));
+}
+
+.shadcn-btn-outline:hover {
+    background-color: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+}
+
+.shadcn-btn-destructive {
+    background-color: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
+}
+
+.shadcn-btn-destructive:hover {
+    opacity: 0.9;
+}
+
+/* shadcn 카드 스타일 */
+.shadcn-card {
+    background-color: hsl(var(--card));
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid hsl(var(--border));
+}
+
+.shadcn-card-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+.shadcn-card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: hsl(var(--card-foreground));
+}
+
+.shadcn-card-description {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.875rem;
+}
+
+.shadcn-card-content {
+    margin-bottom: 1rem;
+}
+
+.shadcn-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* shadcn 입력 필드 스타일 */
+.shadcn-input {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background-color: transparent;
+    color: hsl(var(--foreground));
+    transition: border-color 0.2s ease;
+}
+
+.shadcn-input:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+.shadcn-input-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: hsl(var(--foreground));
+}
+
+/* shadcn 셀렉트 스타일 */
+.shadcn-select {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    background-color: transparent;
+    color: hsl(var(--foreground));
+    transition: border-color 0.2s ease;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="black" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1em;
+}
+
+.shadcn-select:focus {
+    outline: none;
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 1px hsl(var(--ring));
+}
+
+/* shadcn 체크박스 스타일 */
+.shadcn-checkbox {
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid hsl(var(--input));
+    border-radius: 0.25rem;
+    background-color: transparent;
+    cursor: pointer;
+    position: relative;
+}
+
+.shadcn-checkbox:checked {
+    background-color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
+}
+
+.shadcn-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    left: 0.3rem;
+    top: 0.1rem;
+    width: 0.3rem;
+    height: 0.6rem;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* shadcn 테이블 스타일 */
+.shadcn-table {
+    width: 100%;
+    border-collapse: collapse;
+    caption-side: bottom;
+}
+
+.shadcn-table-header {
+    background-color: hsl(var(--muted));
+    font-weight: 500;
+}
+
+.shadcn-table th, .shadcn-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid hsl(var(--border));
+}
+
+.shadcn-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* shadcn 알림 스타일 */
+.shadcn-alert {
+    padding: 1rem;
+    border-radius: var(--radius);
+    border: 1px solid hsl(var(--border));
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.shadcn-alert-success {
+    background-color: #ecfdf5;
+    border-color: #10b981;
+}
+
+.shadcn-alert-warning {
+    background-color: #fffbeb;
+    border-color: #f59e0b;
+}
+
+.shadcn-alert-error {
+    background-color: #fef2f2;
+    border-color: #ef4444;
+}
+
+.shadcn-alert-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.shadcn-alert-description {
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+}
+
+/* shadcn 배지 스타일 */
+.shadcn-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.shadcn-badge-primary {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+}
+
+.shadcn-badge-secondary {
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+}
+
+.shadcn-badge-outline {
+    background-color: transparent;
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground));
+}
+
+.shadcn-badge-destructive {
+    background-color: hsl(var(--destructive));
+    color: hsl(var(--destructive-foreground));
+} 
