@@ -83,7 +83,7 @@ ASP 기반의 카드 지출 결의 및 개인차량 이용 내력 관리 웹 애
 
 ## GitHub 저장소
 
-- [https://github.com/qwer123toy/card_car_used](https://github.com/qwer123toy/card_car_used)
+- [https://github.com/qwer123toy/card_car_used](https://github.com/qwer123toy/card_car_used2)
 
 ## 라이선스
 
