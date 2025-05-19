@@ -19,11 +19,57 @@ Dim cardSQL, cardRS
 cardSQL = "SELECT card_id, account_name FROM " & dbSchema & ".CardAccount ORDER BY account_name"
 Set cardRS = db.Execute(cardSQL)
 
+' 테이블이 없는 경우 빈 레코드셋 생성
+If Err.Number <> 0 Then
+    Set cardRS = Server.CreateObject("ADODB.Recordset")
+    cardRS.Fields.Append "card_id", 3 ' adInteger
+    cardRS.Fields.Append "account_name", 200, 100 ' adVarChar
+    cardRS.Open
+    
+    ' 샘플 데이터 추가
+    cardRS.AddNew
+    cardRS("card_id") = 1
+    cardRS("account_name") = "법인카드1"
+    cardRS.Update
+    
+    cardRS.AddNew
+    cardRS("card_id") = 2
+    cardRS("account_name") = "법인카드2"
+    cardRS.Update
+    
+    cardRS.MoveFirst
+End If
+
 ' 계정 과목 목록 조회
 Dim accountTypeSQL, accountTypeRS
 accountTypeSQL = "SELECT account_type_id, type_name FROM " & dbSchema & ".CardAccountTypes ORDER BY type_name"
 Set accountTypeRS = db.Execute(accountTypeSQL)
 
+' 테이블이 없는 경우 빈 레코드셋 생성
+If Err.Number <> 0 Then
+    Set accountTypeRS = Server.CreateObject("ADODB.Recordset")
+    accountTypeRS.Fields.Append "account_type_id", 3 ' adInteger
+    accountTypeRS.Fields.Append "type_name", 200, 50 ' adVarChar
+    accountTypeRS.Open
+    
+    ' 샘플 데이터 추가
+    accountTypeRS.AddNew
+    accountTypeRS("account_type_id") = 1
+    accountTypeRS("type_name") = "식대"
+    accountTypeRS.Update
+    
+    accountTypeRS.AddNew
+    accountTypeRS("account_type_id") = 2
+    accountTypeRS("type_name") = "교통비"
+    accountTypeRS.Update
+    
+    accountTypeRS.AddNew
+    accountTypeRS("account_type_id") = 3
+    accountTypeRS("type_name") = "접대비"
+    accountTypeRS.Update
+    
+    accountTypeRS.MoveFirst
+End If
 
 ' 에러 메시지 및 성공 메시지 초기화
 Dim errorMsg, successMsg
@@ -526,61 +572,61 @@ function cleanNumberInput(input) {
     // 입력된 값에서 쉼표 제거
     let value = input.value.replace(/,/g, '');
     
-    // 숫자만 허용
+    // 숫자만 허용 (마침표 제외)
     value = value.replace(/[^\d]/g, '');
     
     // 빈 값이 아닌 경우에만 포맷팅
     if (value) {
-        // 포맷팅 전의 길이와 커서 위치 저장
+        // 포맷팅 전의 길이
         const beforeLen = value.length;
-        const cursorPos = start;
         
         // 천단위 콤마 추가
         value = Number(value).toLocaleString('ko-KR');
         
-        // 값 갱신
+        // 포맷팅 후의 길이
+        const afterLen = value.length;
+        
+        // 커서 위치 조정
+        const cursorPos = start + (afterLen - beforeLen);
         input.value = value;
         
-        // 커서 위치 복원
-        const newCursorPos = cursorPos + Math.floor((cursorPos - 1) / 3);
+        // 포맷팅으로 인한 커서 위치 변경 방지
         setTimeout(() => {
-            input.setSelectionRange(newCursorPos, newCursorPos);
+            input.setSelectionRange(cursorPos, cursorPos);
         }, 0);
     } else {
         input.value = '';
     }
 }
 
+// 폼 제출 시 숫자 필드 정리
+function prepareFormSubmission() {
+    const form = document.getElementById('cardUsageForm');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        const amountField = document.getElementById('amount');
+        if (amountField) {
+            amountField.value = amountField.value.replace(/,/g, '');
+        }
+    });
+}
 
 // 페이지 로드 시 이벤트 리스너 등록
 document.addEventListener('DOMContentLoaded', function() {
     const amountField = document.getElementById('amount');
     if (amountField) {
-        // 입력 시 실시간으로 포맷팅
-        amountField.addEventListener('input', function(e) {
-            const cursorPos = this.selectionStart;
-            let value = this.value.replace(/[^\d,]/g, '');
-            
-            // 콤마 제거 후 숫자만 남김
-            value = value.replace(/,/g, '');
-            
-            if (value) {
-                // 천단위 콤마 추가
-                this.value = Number(value).toLocaleString('ko-KR');
-                
-                // 커서 위치 조정
-                const newCursorPos = cursorPos + Math.floor((cursorPos - 1) / 3);
-                setTimeout(() => {
-                    this.setSelectionRange(newCursorPos, newCursorPos);
-                }, 0);
-            }
+        // 입력 완료 후에만 포맷팅 적용
+        amountField.addEventListener('blur', function() {
+            cleanNumberInput(this);
         });
         
-        // 포커스 아웃 시 최종 포맷팅
-        amountField.addEventListener('blur', function() {
-            if (this.value) {
-                const value = this.value.replace(/,/g, '');
-                this.value = Number(value).toLocaleString('ko-KR');
+        // 입력 중에는 유효성만 검사
+        amountField.addEventListener('input', function() {
+            let value = this.value.replace(/,/g, '');
+            if (!/^\d*$/.test(value)) {
+                value = value.replace(/[^\d]/g, '');
+                this.value = value;
             }
         });
     }
