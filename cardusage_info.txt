@@ -1,0 +1,2 @@
+Sqlcmd: Error: Microsoft ODBC Driver 17 for SQL Server : ODBC Driver 17 for SQL Server does not support connections to SQL Server 2000 or earlier versions..
+Sqlcmd: Error: Microsoft ODBC Driver 17 for SQL Server : Client unable to establish connection.
