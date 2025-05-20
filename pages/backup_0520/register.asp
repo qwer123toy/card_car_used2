@@ -131,267 +131,174 @@ End If
 <!--#include file="../includes/header.asp"-->
 
 <style>
-.container {
-    max-width: 900px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.page-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #2C3E50;
-    margin: 0;
-}
-
+.container { max-width: 900px; }
 .card {
-    background: #fff;
     border: none;
-    border-radius: 16px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.05);
-    margin-bottom: 2rem;
-    overflow: hidden;
-}
-
-.card-header {
-    background: linear-gradient(to right, #4A90E2, #5A9EEA);
-    border-bottom: none;
-    padding: 1.5rem;
-}
-
-.card-header h5 {
-    color: #fff;
-    font-weight: 600;
-    margin: 0;
-    font-size: 1.25rem;
-}
-
-.card-body {
-    padding: 2rem;
-}
-
-.form-group {
-    margin-bottom: 1.5rem;
-    position: relative;
-}
-
-.form-label {
-    font-weight: 600;
-    color: #2C3E50;
-    margin-bottom: 0.5rem;
-    display: block;
-}
-
-.form-control {
-    border: 2px solid #E9ECEF;
-    border-radius: 8px;
-    padding: 0.875rem 1rem;
-    font-size: 1rem;
-    transition: all 0.2s ease;
-    width: 100%;
-}
-
-.form-control:focus {
-    border-color: #4A90E2;
-    box-shadow: 0 0 0 4px rgba(74,144,226,0.1);
-}
-
-.form-select {
-    border: 2px solid #E9ECEF;
-    border-radius: 8px;
-    padding: 0.875rem 1rem;
-    font-size: 1rem;
-    width: 100%;
-}
-
-.required-mark {
-    color: #E74C3C;
-    margin-left: 4px;
-}
-
-.btn {
-    padding: 0.875rem 1.5rem;
-    font-weight: 600;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
-
-.btn-primary {
-    background: linear-gradient(to right, #4A90E2, #5A9EEA);
-    border: none;
-    color: white;
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(74,144,226,0.2);
-}
-
-.btn-secondary {
-    background: #F8FAFC;
-    border: 2px solid #E9ECEF;
-    color: #2C3E50;
-}
-
-.btn-secondary:hover {
-    background: #E9ECEF;
-    transform: translateY(-2px);
-}
-
-.alert {
-    border: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 2rem;
-    font-weight: 500;
+    margin-top: 2rem;
 }
-
-.alert-danger {
-    background: #FDF1F1;
-    color: #E74C3C;
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+    padding: 1.5rem;
+    border-radius: 12px 12px 0 0 !important;
 }
-
-.alert-success {
-    background: #EDF9F0;
-    color: #2ECC71;
+.card-body { padding: 2rem; }
+.form-group { margin-bottom: 1.5rem; }
+.form-control {
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
 }
-
-.row {
-    display: flex;
-    flex-wrap: wrap;
-    margin: -0.75rem;
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
 }
-
-.col-md-6 {
-    flex: 0 0 50%;
-    max-width: 50%;
-    padding: 0.75rem;
+label { 
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #495057;
 }
-
-@media (max-width: 768px) {
-    .col-md-6 {
-        flex: 0 0 100%;
-        max-width: 100%;
-    }
+.btn {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+.btn-primary:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+    transform: translateY(-1px);
+}
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+    transform: translateY(-1px);
+}
+.required-mark {
+    color: #dc3545;
+    margin-left: 2px;
+}
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+.alert {
+    border-radius: 6px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+.password-section {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
 }
 </style>
 
 <div class="container">
-    <div class="page-header">
-        <h2 class="page-title">회원가입</h2>
-    </div>
-
-    <% If errorMsg <> "" Then %>
-        <div class="alert alert-danger" role="alert">
-            <i class="fas fa-exclamation-circle me-2"></i><%= errorMsg %>
-        </div>
-    <% End If %>
-    
-    <% If successMsg <> "" Then %>
-        <div class="alert alert-success" role="alert">
-            <i class="fas fa-check-circle me-2"></i><%= successMsg %>
-        </div>
-    <% End If %>
-
-    <div class="card">
-        <div class="card-header">
-            <h5 class="card-title">사용자 정보 입력</h5>
-        </div>
-        <div class="card-body">
-            <form method="post" action="register.asp">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">아이디<span class="required-mark">*</span></label>
-                            <input type="text" name="user_id" class="form-control" required>
-                        </div>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="text-center mb-0">회원가입</h2>
+                </div>
+                <div class="card-body">
+                    <% If errorMsg <> "" Then %>
+                    <div class="alert alert-danger" role="alert">
+                        <%= errorMsg %>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">이름<span class="required-mark">*</span></label>
-                            <input type="text" name="name" class="form-control" required>
-                        </div>
+                    <% End If %>
+                    
+                    <% If successMsg <> "" Then %>
+                    <div class="alert alert-success" role="alert">
+                        <%= successMsg %>
                     </div>
-                    <div class="col-md-6">
+                    <% End If %>
+                    
+                    <form method="post" action="register.asp">
                         <div class="form-group">
-                            <label class="form-label">비밀번호<span class="required-mark">*</span></label>
-                            <input type="password" name="password" class="form-control" required>
+                            <label for="user_id">아이디<span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="user_id" name="user_id" required>
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">비밀번호 확인<span class="required-mark">*</span></label>
-                            <input type="password" name="confirm_password" class="form-control" required>
+                        
+                        <div class="password-section">
+                            <div class="form-group">
+                                <label for="password">비밀번호<span class="required-mark">*</span></label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                                <small class="form-text text-muted">비밀번호는 최소 6자리 이상이어야 합니다.</small>
+                            </div>
+                            
+                            <div class="form-group mb-0">
+                                <label for="confirm_password">비밀번호 확인<span class="required-mark">*</span></label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
+                        
                         <div class="form-group">
-                            <label class="form-label">이메일</label>
-                            <input type="email" name="email" class="form-control">
+                            <label for="name">이름<span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required>
                         </div>
-                    </div>
-                    <div class="col-md-6">
+                        
                         <div class="form-group">
-                            <label class="form-label">부서</label>
-                            <select name="department_id" class="form-select">
+                            <label for="email">이메일</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="department_id">부서</label>
+                            <select class="form-control" id="department_id" name="department_id">
                                 <option value="">선택해주세요</option>
                                 <% 
-                                If Not deptRS.EOF Then
-                                    Do While Not deptRS.EOF 
+                                If Not deptRS.BOF Then
+                                    deptRS.MoveFirst
+                                    Do Until deptRS.EOF 
                                 %>
-                                    <option value="<%= deptRS("department_id") %>">
-                                        <%= deptRS("name") %>
-                                    </option>
+                                    <option value="<%= deptRS("department_id") %>"><%= deptRS("name") %></option>
                                 <% 
-                                        deptRS.MoveNext
+                                    deptRS.MoveNext
                                     Loop
                                 End If
                                 %>
                             </select>
                         </div>
-                    </div>
-                    <div class="col-md-6">
+                        
                         <div class="form-group">
-                            <label class="form-label">직급</label>
-                            <select name="job_grade_id" class="form-select">
+                            <label for="job_grade_id">직급</label>
+                            <select class="form-control" id="job_grade_id" name="job_grade_id">
                                 <option value="">선택해주세요</option>
                                 <% 
-                                If Not gradeRS.EOF Then
-                                    Do While Not gradeRS.EOF 
+                                If Not gradeRS.BOF Then
+                                    gradeRS.MoveFirst
+                                    Do Until gradeRS.EOF 
                                 %>
-                                    <option value="<%= gradeRS("job_grade_id") %>">
-                                        <%= gradeRS("name") %>
-                                    </option>
+                                    <option value="<%= gradeRS("job_grade_id") %>"><%= gradeRS("name") %></option>
                                 <% 
-                                        gradeRS.MoveNext
+                                    gradeRS.MoveNext
                                     Loop
                                 End If
                                 %>
                             </select>
                         </div>
-                    </div>
+                        
+                        <div class="form-group text-center mt-4">
+                            <button type="submit" class="btn btn-primary">회원가입</button>
+                            <a href="index.asp" class="btn btn-secondary ml-2">취소</a>
+                        </div>
+                    </form>
                 </div>
-
-                <div class="text-center mt-4">
-                    <button type="submit" class="btn btn-primary me-2">
-                        <i class="fas fa-user-plus me-1"></i> 회원가입
-                    </button>
-                    <a href="../index.asp" class="btn btn-secondary">
-                        <i class="fas fa-times me-1"></i> 취소
-                    </a>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>

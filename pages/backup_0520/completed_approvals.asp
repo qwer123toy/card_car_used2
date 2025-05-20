@@ -89,134 +89,12 @@ Set rs = db99.Execute(completedSQL)
 
 <!--#include virtual="/contents/card_car_used/includes/header.asp"-->
 
-<style>
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem 1rem;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.page-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #2C3E50;
-    margin: 0;
-}
-
-.btn-group-nav {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.btn-nav {
-    padding: 0.625rem 1.25rem;
-    font-size: 0.9rem;
-}
-
-.card {
-    border: none;
-    box-shadow: 0 0 20px rgba(0,0,0,0.05);
-    border-radius: 16px;
-    margin-bottom: 2rem;
-    background: #fff;
-    overflow: hidden;
-}
-
-.card-header {
-    background: linear-gradient(to right, #4A90E2, #5A9EEA);
-    border-bottom: none;
-    padding: 1.5rem;
-}
-
-.card-header h5 {
-    color: #fff;
-    font-weight: 600;
-    margin: 0;
-    font-size: 1.25rem;
-}
-
-.badge {
-    padding: 0.5rem 1rem;
-    font-weight: 500;
-    border-radius: 6px;
-    font-size: 0.875rem;
-}
-
-.badge-success {
-    background: #E3F9E5 !important;
-    color: #1B873F;
-}
-
-.badge-danger {
-    background: #FFE9E9 !important;
-    color: #DA3633;
-}
-
-.table td {
-    vertical-align: middle;
-}
-
-.btn-group .btn.active {
-    background-color: #4A90E2;
-    color: white;
-}
-
-.pagination {
-    margin-top: 2rem;
-}
-
-.page-link {
-    border: none;
-    padding: 0.75rem 1rem;
-    margin: 0 0.25rem;
-    border-radius: 6px;
-    color: #2C3E50;
-    background: #F8FAFC;
-    transition: all 0.2s ease;
-}
-
-.page-link:hover {
-    background: #E9ECEF;
-    color: #2C3E50;
-    transform: translateY(-2px);
-}
-
-.page-item.active .page-link {
-    background: #4A90E2;
-    color: white;
-}
-
-.btn-outline-primary {
-    border: 2px solid #4A90E2;
-    color: #4A90E2;
-}
-
-.btn-outline-primary:hover {
-    background: #4A90E2;
-    color: white;
-    transform: translateY(-2px);
-}
-</style>
-
-<div class="container">
-    <div class="page-header">
-        <h2 class="page-title">결재 완료 문서 목록</h2>
-        <div class="btn-group-nav">
-            <a href="dashboard.asp" class="btn btn-secondary btn-nav">
-                <i class="fas fa-home me-1"></i> 대시보드
-            </a>
-        </div>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>결재 완료 문서 목록</h2>
+        <a href="dashboard.asp" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> 대시보드로 돌아가기
+        </a>
     </div>
 
     <div class="card">
@@ -257,7 +135,15 @@ Set rs = db99.Execute(completedSQL)
                                     <td><%= rs("requester_name") %></td>
                                     <td><%= rs("department_name") %></td>
                                     <td><%= rs("store_name") %></td>
-                                    <td class="text-end"><%= FormatNumber(rs("amount")) %>원</td>
+                                    <td class="text-right">
+                                        <% 
+                                        If Not IsNull(rs("amount")) Then
+                                            Response.Write FormatNumber(rs("amount"), 0) & "원"
+                                        Else
+                                            Response.Write "0원"
+                                        End If
+                                        %>
+                                    </td>
                                     <td><%= Left(rs("purpose"), 20) & IIf(Len(rs("purpose")) > 20, "...", "") %></td>
                                     <td>
                                         <span class="badge badge-<%= IIf(rs("status")="승인", "success", "danger") %>">
@@ -319,5 +205,27 @@ Set rs = db99.Execute(completedSQL)
         </div>
     </div>
 </div>
+
+<style>
+.badge {
+    padding: 6px 10px;
+    font-weight: 500;
+}
+.badge-success {
+    background-color: #E3F9E5;
+    color: #1B873F;
+}
+.badge-danger {
+    background-color: #FFE9E9;
+    color: #DA3633;
+}
+.table td {
+    vertical-align: middle;
+}
+.btn-group .btn.active {
+    background-color: #4A90E2;
+    color: white;
+}
+</style>
 
 <!--#include virtual="/contents/card_car_used/includes/footer.asp"--> 

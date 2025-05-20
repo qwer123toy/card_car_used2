@@ -480,9 +480,7 @@ On Error GoTo 0
                         <td>
                             <div style="display: flex; gap: 5px;">
                                 <a href="card_usage_view.asp?id=<%= rs("usage_id") %>" class="shadcn-btn shadcn-btn-outline" style="padding: 2px 8px; font-size: 0.75rem;">상세</a>
-                                <% If rs("approval_status") = "대기" Or rs("approval_status") = "반려" Then %>
-                                    <a href="card_usage_edit.asp?id=<%= rs("usage_id") %>" class="shadcn-btn shadcn-btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;">수정</a>
-                                <% End If %>
+                                <a href="card_usage_edit.asp?id=<%= rs("usage_id") %>" class="shadcn-btn shadcn-btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;">수정</a>
                             </div>
                         </td>
                     </tr>

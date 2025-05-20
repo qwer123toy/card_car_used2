@@ -90,24 +90,203 @@ Set rs = db99.Execute(pendingSQL)
 
 <!--#include virtual="/contents/card_car_used/includes/header.asp"-->
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="page-title">결재 대기 문서 목록</h2>
-        <a href="dashboard.asp" class="btn btn-secondary">
-            <i class="fas fa-arrow-left me-2"></i>대시보드로 돌아가기
-        </a>
+<style>
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2C3E50;
+    margin: 0;
+}
+
+.card {
+    background: #fff;
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.card-header {
+    background: linear-gradient(to right, #4A90E2, #5A9EEA);
+    border-bottom: none;
+    padding: 1.5rem;
+}
+
+.card-header h5 {
+    color: #fff;
+    font-weight: 600;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    background-color: #F8FAFC !important;
+    color: #2C3E50;
+    font-weight: 600;
+    border-bottom: 2px solid #E9ECEF;
+    padding: 1rem;
+    font-size: 0.95rem;
+}
+
+.table td {
+    padding: 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #E9ECEF;
+    color: #2C3E50;
+}
+
+.badge {
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    border-radius: 6px;
+    font-size: 0.875rem;
+}
+
+.badge-waiting {
+    background: #FFF8E6;
+    color: #D4A72C;
+}
+
+.badge-approved {
+    background: #E3F9E5;
+    color: #1B873F;
+}
+
+.badge-rejected {
+    background: #FFE9E9;
+    color: #DA3633;
+}
+
+.btn {
+    padding: 0.875rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(to right, #4A90E2, #5A9EEA);
+    border: none;
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74,144,226,0.2);
+}
+
+.btn-secondary {
+    background: #F8FAFC;
+    border: 2px solid #E9ECEF;
+    color: #2C3E50;
+}
+
+.btn-secondary:hover {
+    background: #E9ECEF;
+    transform: translateY(-2px);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+}
+
+.page-link {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    color: #2C3E50;
+    background: #F8FAFC;
+    border: 2px solid #E9ECEF;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.page-link:hover {
+    background: #E9ECEF;
+    transform: translateY(-2px);
+}
+
+.page-item.active .page-link {
+    background: #4A90E2;
+    border-color: #4A90E2;
+    color: white;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: #E9ECEF;
+    margin-bottom: 1rem;
+}
+
+.empty-state p {
+    color: #64748B;
+    font-size: 1.1rem;
+    margin: 0;
+}
+</style>
+
+<div class="container">
+    <div class="page-header">
+        <h2 class="page-title">결재 대기 문서</h2>
+        <div class="d-flex gap-2">
+            <a href="dashboard.asp" class="btn btn-secondary">
+                <i class="fas fa-home me-2"></i>대시보드
+            </a>
+        </div>
     </div>
 
     <div class="card">
+        <div class="card-header">
+            <h5 class="card-title">결재 대기 목록</h5>
+        </div>
         <div class="card-body">
             <% If rs.EOF Then %>
-                <div class="text-center py-5">
-                    <p class="text-muted">결재 대기 중인 문서가 없습니다.</p>
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>결재 대기 중인 문서가 없습니다.</p>
                 </div>
             <% Else %>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
+                    <table class="table">
+                        <thead>
                             <tr>
                                 <th>신청일</th>
                                 <th>신청자</th>
@@ -116,7 +295,7 @@ Set rs = db99.Execute(pendingSQL)
                                 <th class="text-end">금액</th>
                                 <th>용도</th>
                                 <th>상태</th>
-                                <th>처리</th>
+                                <th class="text-center">처리</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -126,185 +305,69 @@ Set rs = db99.Execute(pendingSQL)
                                     <td><%= rs("requester_name") %></td>
                                     <td><%= rs("department_name") %></td>
                                     <td><%= rs("store_name") %></td>
-                                    <td class="text-end">
-                                        <% 
-                                        If Not IsNull(rs("amount")) Then
-                                            Response.Write FormatCurrency(rs("amount"), 0)
-                                        Else
-                                            Response.Write FormatCurrency(0, 0)
-                                        End If
-                                        %>
-                                    </td>
+                                    <td class="text-end"><%= FormatNumber(rs("amount"), 0) %>원</td>
                                     <td><%= Left(rs("purpose"), 20) & IIf(Len(rs("purpose")) > 20, "...", "") %></td>
                                     <td>
-                                        <span class="badge rounded-pill bg-warning-subtle text-warning px-3 py-2">
-                                            <%= rs("approval_step") %>차 결재 대기
+                                        <span class="badge badge-waiting">
+                                            <%= rs("status") %>
                                         </span>
                                     </td>
-                                    <td>
-                                        <a href="approval_detail.asp?id=<%= rs("usage_id") %>" class="btn btn-sm btn-primary">
+                                    <td class="text-center">
+                                        <a href="approval_detail.asp?id=<%= rs("usage_id") %>" 
+                                           class="btn btn-primary btn-sm">
                                             결재하기
                                         </a>
                                     </td>
                                 </tr>
-                            <%
-                                rs.MoveNext
-                                Loop
+                            <% 
+                                rs.MoveNext 
+                            Loop 
                             %>
                         </tbody>
                     </table>
                 </div>
 
-                <!-- 페이징 -->
+                <!-- 페이지네이션 -->
                 <% If totalPages > 1 Then %>
-                    <div class="d-flex justify-content-center mt-4">
-                        <nav aria-label="Page navigation">
-                            <ul class="pagination">
-                                <% If currentPage > 1 Then %>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=<%= currentPage - 1 %>">&laquo;</a>
-                                    </li>
-                                <% End If %>
+                    <nav class="pagination">
+                        <% If currentPage > 1 Then %>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=<%= currentPage - 1 %>">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                        <% End If %>
 
-                                <% 
-                                Dim startPage, endPage
-                                startPage = ((currentPage - 1) \ 5) * 5 + 1
-                                endPage = Min(startPage + 4, totalPages)
+                        <% 
+                        Dim startPage, endPage
+                        startPage = currentPage - 2
+                        If startPage < 1 Then startPage = 1
+                        endPage = startPage + 4
+                        If endPage > totalPages Then 
+                            endPage = totalPages
+                            startPage = endPage - 4
+                            If startPage < 1 Then startPage = 1
+                        End If
 
-                                For i = startPage To endPage
-                                %>
-                                    <li class="page-item <%= IIf(i = currentPage, "active", "") %>">
-                                        <a class="page-link" href="?page=<%= i %>"><%= i %></a>
-                                    </li>
-                                <% Next %>
+                        For i = startPage To endPage
+                        %>
+                            <li class="page-item <%= IIf(i = currentPage, "active", "") %>">
+                                <a class="page-link" href="?page=<%= i %>"><%= i %></a>
+                            </li>
+                        <% Next %>
 
-                                <% If currentPage < totalPages Then %>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=<%= currentPage + 1 %>">&raquo;</a>
-                                    </li>
-                                <% End If %>
-                            </ul>
-                        </nav>
-                    </div>
+                        <% If currentPage < totalPages Then %>
+                            <li class="page-item">
+                                <a class="page-link" href="?page=<%= currentPage + 1 %>">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        <% End If %>
+                    </nav>
                 <% End If %>
             <% End If %>
         </div>
     </div>
 </div>
-
-<style>
-.page-title {
-    font-size: 1.75rem;
-    font-weight: 600;
-    color: #2C3E50;
-    margin: 0;
-}
-
-.table {
-    font-size: 0.95rem;
-    margin-top: 1rem;
-}
-
-.table th {
-    font-weight: 600;
-    color: #2C3E50;
-    background-color: #F8F9FA;
-    border-bottom: 2px solid #E9ECEF;
-}
-
-.table td {
-    padding: 1rem 0.75rem;
-    vertical-align: middle;
-    border-bottom: 1px solid #E9ECEF;
-}
-
-.badge {
-    font-weight: 500;
-    font-size: 0.85rem;
-    padding: 0.5rem 1rem;
-    border-radius: 2rem;
-}
-
-.bg-warning-subtle {
-    background-color: #FFF8E6;
-}
-
-.text-warning {
-    color: #D4A72C !important;
-}
-
-.btn-secondary {
-    background-color: #6C757D;
-    border-color: #6C757D;
-    color: white;
-    padding: 0.5rem 1rem;
-}
-
-.btn-secondary:hover {
-    background-color: #5A6268;
-    border-color: #545B62;
-    color: white;
-}
-
-.pagination {
-    margin: 2rem 0 1rem;
-}
-
-.page-link {
-    color: #4A90E2;
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
-    margin: 0 0.25rem;
-}
-
-.page-item.active .page-link {
-    background-color: #4A90E2;
-    border-color: #4A90E2;
-}
-
-.page-item:first-child .page-link,
-.page-item:last-child .page-link {
-    margin: 0;
-}
-
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: none;
-    border-radius: 0.75rem;
-    margin-bottom: 2rem;
-}
-
-.card-header {
-    background-color: white;
-    border-bottom: 1px solid #E9ECEF;
-    padding: 1.5rem;
-    border-radius: 0.75rem 0.75rem 0 0 !important;
-}
-
-.card-body {
-    padding: 1.5rem;
-}
-
-.table-responsive {
-    margin: -1.5rem;
-    padding: 1.5rem;
-    border-radius: 0.75rem;
-}
-
-.btn-primary {
-    background-color: #4A90E2;
-    border-color: #4A90E2;
-}
-
-.btn-primary:hover {
-    background-color: #357ABD;
-    border-color: #357ABD;
-}
-
-.btn-sm {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.875rem;
-}
-</style>
 
 <!--#include virtual="/contents/card_car_used/includes/footer.asp"--> 

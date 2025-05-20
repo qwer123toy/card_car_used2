@@ -194,7 +194,7 @@ On Error GoTo 0
                                "JOIN dbo.ApprovalLogs al ON cu.usage_id = al.target_id " & _
                                "WHERE al.target_table_name = 'CardUsage' " & _
                                "AND al.approver_id = '" & Session("user_id") & "' " & _
-                               "AND al.status IN ('대기', '반려') " & _
+                               "AND al.status = '대기' " & _
                                "ORDER BY cu.usage_date DESC"
                     
                     Set rs = db.Execute(pendingSQL)
@@ -263,7 +263,7 @@ On Error GoTo 0
                                  "JOIN dbo.ApprovalLogs al ON cu.usage_id = al.target_id " & _
                                  "WHERE al.target_table_name = 'CardUsage' " & _
                                  "AND al.approver_id = '" & Session("user_id") & "' " & _
-                                 "AND al.status IN ('승인') " & _
+                                 "AND al.status IN ('승인', '반려') " & _
                                  "ORDER BY al.approved_at DESC"
                     
                     Set rs = db.Execute(completedSQL)

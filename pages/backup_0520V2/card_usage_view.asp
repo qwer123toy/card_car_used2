@@ -189,17 +189,9 @@ End Function
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h2 class="shadcn-card-title">카드 사용 내역 상세</h2>
                 <div>
-                    <div class="text-center mt-4">
-                        <% If rs("approval_status") = "대기" Or rs("approval_status") = "반려" Then %>
-                            <a href="card_usage_edit.asp?id=<%= rs("usage_id") %>" class="btn btn-primary me-2">
-                                <i class="fas fa-edit me-1"></i> 수정
-                            </a>
-                        <% End If %>
-                        <% If rs("approval_status") <> "완료" Then %>
-                            <button onclick="confirmDelete('<%= rs("usage_id") %>')" class="btn btn-destructive me-2">삭제</button>
-                        <% End If %>
-                        <a href="card_usage.asp" class="btn btn-outline">목록으로</a>
-                    </div>
+                    <a href="card_usage_edit.asp?id=<%= usageId %>" class="shadcn-btn shadcn-btn-secondary">수정</a>
+                    <button onclick="confirmDelete('<%= usageId %>')" class="shadcn-btn shadcn-btn-destructive">삭제</button>
+                    <a href="card_usage.asp" class="shadcn-btn shadcn-btn-outline">목록</a>
                 </div>
             </div>
             <p class="shadcn-card-description">카드 사용 내역의 상세 정보를 확인합니다.</p>

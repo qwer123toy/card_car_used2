@@ -53,8 +53,8 @@ If checkOwnerRS("user_id") <> Session("user_id") Then
     Response.End
 End If
 
-If checkOwnerRS("approval_status") <> "반려" And checkOwnerRS("approval_status") <> "대기" Then
-    Response.Write "<script>alert('대기 또는 반려 상태의 문서만 수정할 수 있습니다.'); history.back();</script>"
+If checkOwnerRS("approval_status") <> "반려" Then
+    Response.Write "<script>alert('반려된 문서만 수정할 수 있습니다.'); history.back();</script>"
     Response.End
 End If
 
@@ -69,7 +69,8 @@ updateCardSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
                 "amount = " & amount & ", " & _
                 "purpose = '" & PreventSQLInjection(purpose) & "', " & _
                 "store_name = '" & PreventSQLInjection(storeName) & "', " & _
-                "approval_status = '대기' " & _
+                "approval_status = '대기', " & _
+                "modified_at = GETDATE() " & _
                 "WHERE usage_id = " & usageId
 
 db.Execute(updateCardSQL)
@@ -84,8 +85,8 @@ End If
 Dim resetLogsSQL
 resetLogsSQL = "UPDATE " & dbSchema & ".ApprovalLogs SET " & _
                "status = '대기', " & _
-               "approved_at = NULL, " & _
-               "comments = NULL " & _
+               "processed_at = NULL, " & _
+               "comment = NULL " & _
                "WHERE target_table_name = 'CardUsage' " & _
                "AND target_id = " & usageId
 

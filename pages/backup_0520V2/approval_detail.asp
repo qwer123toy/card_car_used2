@@ -639,10 +639,10 @@ End If
                         </tr>
                     </table>
                     <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary me-2">
+                        <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save me-1"></i> 수정사항 저장
                         </button>
-                        <a href="dashboard.asp" class="btn btn-secondary ms-2">
+                        <a href="dashboard.asp" class="btn btn-secondary">
                             <i class="fas fa-times me-1"></i> 취소
                         </a>
                     </div>
