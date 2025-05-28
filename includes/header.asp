@@ -26,7 +26,7 @@
                         <%
                         If Session("is_admin") = "Y" Then
                         %>
-                            <li><a href="/contents/card_car_used/admin/index.asp">관리자</a></li>
+                            <li><a href="/contents/card_car_used/pages/admin/admin_dashboard.asp">관리자</a></li>
                         <%
                         End If
                         %>

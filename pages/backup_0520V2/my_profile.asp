@@ -157,14 +157,14 @@ End If
 
 ' 직급 목록 가져오기
 Dim gradeRS, gradeSQL
-gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".JobGrade ORDER BY job_grade_id"
+gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grade ORDER BY job_grade_id"
 On Error Resume Next
 Set gradeRS = db.Execute(gradeSQL)
 
 ' 직급 테이블이 없는 경우 대체 테이블 시도
 If Err.Number <> 0 Then
     Err.Clear
-    gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".JobGrades ORDER BY job_grade_id"
+    gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grades ORDER BY job_grade_id"
     Set gradeRS = db.Execute(gradeSQL)
 End If
 
@@ -189,23 +189,23 @@ If Err.Number <> 0 Then
     ' 직급 테이블 생성 시도
     On Error Resume Next
     Dim createSQL
-    createSQL = "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='JobGrade' AND xtype='U') " & _
+    createSQL = "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='job_grade' AND xtype='U') " & _
                 "BEGIN " & _
-                "CREATE TABLE [dbo].[JobGrade]( " & _
+                "CREATE TABLE [dbo].[job_grade]( " & _
                 "[job_grade_id] [int] IDENTITY(1,1) NOT NULL, " & _
                 "[name] [nvarchar](50) NOT NULL, " & _
                 "[created_at] [datetime] DEFAULT GETDATE(), " & _
-                "CONSTRAINT [PK_JobGrade] PRIMARY KEY CLUSTERED ([job_grade_id] ASC) " & _
+                "CONSTRAINT [PK_job_grade] PRIMARY KEY CLUSTERED ([job_grade_id] ASC) " & _
                 ") " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'사원') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'대리') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'과장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'차장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'부장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'이사') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'상무') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'전무') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'대표') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'사원') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'대리') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'과장') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'차장') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'부장') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'이사') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'상무') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'전무') " & _
+                "INSERT INTO [dbo].[job_grade] ([name]) VALUES (N'대표') " & _
                 "END"
     db.Execute(createSQL)
     Err.Clear
@@ -292,12 +292,12 @@ End If
 
 ' 프로필 정보 수정 처리
 If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_type") = "profile_update" Then
-    Dim profilePassword, newName, newEmail, newDepartmentId, newJobGrade
+    Dim profilePassword, newName, newEmail, newDepartmentId, newjob_grade
     profilePassword = Request.Form("profile_password")
     newName = Request.Form("name")
     newEmail = Request.Form("email")
     newDepartmentId = Request.Form("department_id")
-    newJobGrade = Request.Form("job_grade")
+    newjob_grade = Request.Form("job_grade")
     
     ' 입력값 검증
     If profilePassword = "" Then
@@ -335,7 +335,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_typ
                         "SET name = '" & PreventSQLInjection(newName) & "', " & _
                         "email = '" & PreventSQLInjection(newEmail) & "', " & _
                         "department_id = " & PreventSQLInjection(newDepartmentId) & ", " & _
-                        "job_grade = " & PreventSQLInjection(newJobGrade) & " " & _
+                        "job_grade = " & PreventSQLInjection(newjob_grade) & " " & _
                         "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
             
             On Error Resume Next
@@ -348,7 +348,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_typ
                             "SET name = '" & PreventSQLInjection(newName) & "', " & _
                             "email = '" & PreventSQLInjection(newEmail) & "', " & _
                             "department_id = " & PreventSQLInjection(newDepartmentId) & ", " & _
-                            "job_grade = " & PreventSQLInjection(newJobGrade) & " " & _
+                            "job_grade = " & PreventSQLInjection(newjob_grade) & " " & _
                             "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
                 db.Execute(profileUpdateSql)
             End If
@@ -400,10 +400,10 @@ Function GetDepartmentName(deptId)
 End Function
 
 ' 직급명 가져오기 함수
-Function GetJobGradeName(jobGradeId)
+Function Getjob_gradeName(job_gradeId)
     ' NULL 또는 빈 값 처리
-    If IsNull(jobGradeId) Or jobGradeId = "" Then
-        GetJobGradeName = "-"
+    If IsNull(job_gradeId) Or job_gradeId = "" Then
+        Getjob_gradeName = "-"
         Exit Function
     End If
     
@@ -411,8 +411,8 @@ Function GetJobGradeName(jobGradeId)
     If Not gradeRS.BOF Then
         gradeRS.MoveFirst
         Do Until gradeRS.EOF
-            If CStr(gradeRS("job_grade_id")) = CStr(jobGradeId) Then
-                GetJobGradeName = gradeRS("name")
+            If CStr(gradeRS("job_grade_id")) = CStr(job_gradeId) Then
+                Getjob_gradeName = gradeRS("name")
                 Exit Function
             End If
             gradeRS.MoveNext
@@ -420,7 +420,7 @@ Function GetJobGradeName(jobGradeId)
     End If
     
     ' 직급을 찾지 못한 경우
-    GetJobGradeName = jobGradeId & "번 직급"
+    Getjob_gradeName = job_gradeId & "번 직급"
 End Function
 
 ' 오류 처리 재설정
@@ -502,7 +502,7 @@ End If
                         </tr>
                         <tr>
                             <th>직급</th>
-                            <td><%= GetJobGradeName(rs("job_grade")) %></td>
+                            <td><%= Getjob_gradeName(rs("job_grade")) %></td>
                         </tr>
                         <tr>
                             <th>가입일</th>

@@ -56,27 +56,23 @@ If Err.Number <> 0 Or rs.EOF Then
 ElseIf rs("user_id") <> Session("user_id") Then
     errorMsg = "본인이 작성한 신청서만 수정할 수 있습니다."
     RedirectTo("vehicle_request.asp")
-ElseIf rs("approval_status") <> "작성중" Then
-    errorMsg = "작성중 상태의 신청서만 수정할 수 있습니다."
+ElseIf rs("approval_status") = "완료" Then
+    errorMsg = "완료 상태의 신청서는 수정할 수 없습니다."
     RedirectTo("vehicle_request.asp")
 End If
 
-' 신청서 정보 저장
-Dim startDate, endDate, purpose, startLocation, destination, distance
-startDate = rs("start_date")
-endDate = rs("end_date")
-purpose = rs("purpose")
-startLocation = rs("start_location")
-destination = rs("destination")
-distance = rs("distance")
-
 ' 폼 제출 처리
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
+    Dim startDate, endDate, purpose, startLocation, destination, distance, tollFee, parkingFee, title, fuelCost, total_cost
+    
     startDate = PreventSQLInjection(Request.Form("start_date"))
     endDate = PreventSQLInjection(Request.Form("end_date"))
     purpose = PreventSQLInjection(Request.Form("purpose"))
     startLocation = PreventSQLInjection(Request.Form("start_location"))
     destination = PreventSQLInjection(Request.Form("destination"))
+    title = PreventSQLInjection(Request.Form("title"))
+    fuelCost = PreventSQLInjection(Request.Form("fuel_cost"))
+    total_cost = PreventSQLInjection(Request.Form("total_cost"))
     
     ' 종료일자가 비어있으면 시작일자와 동일하게 설정
     If endDate = "" Then
@@ -85,50 +81,77 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     
     ' 숫자 값 안전하게 변환
     distance = 0
+    tollFee = 0
+    parkingFee = 0
     
     If IsNumeric(Replace(Request.Form("distance"), ",", "")) Then
         distance = CDbl(Replace(Request.Form("distance"), ",", ""))
     End If
     
+    If IsNumeric(Replace(Request.Form("toll_fee"), ",", "")) Then
+        tollFee = CDbl(Replace(Request.Form("toll_fee"), ",", ""))
+    End If
+    
+    If IsNumeric(Replace(Request.Form("parking_fee"), ",", "")) Then
+        parkingFee = CDbl(Replace(Request.Form("parking_fee"), ",", ""))
+    End If
+    
+    ' 유류비 계산
+    fuelCost = distance * fuelRate
+    
+    ' 총 금액 계산
+    total_cost = (distance * fuelRate) + tollFee + parkingFee
+
     ' 입력값 검증
-    If startDate = "" Or endDate = "" Or purpose = "" Or startLocation = "" Or destination = "" Then
+    If startDate = "" Or endDate = "" Or purpose = "" Or startLocation = "" Or destination = "" Or title = "" Then
         errorMsg = "필수 항목을 모두 입력해주세요."
     ElseIf distance <= 0 Then
         errorMsg = "운행거리는 양수여야 합니다."
     Else
+        ' 트랜잭션 시작
+        db.BeginTrans
+        
         ' 파라미터화된 쿼리 사용하여 신청서 정보 업데이트
-        Dim updateCmd
-        Set updateCmd = Server.CreateObject("ADODB.Command")
-        updateCmd.ActiveConnection = db
-        updateCmd.CommandText = "UPDATE VehicleRequests SET start_date = ?, end_date = ?, purpose = ?, " & _
-                              "start_location = ?, destination = ?, distance = ? " & _
-                              "WHERE request_id = ?"
+        Set cmd = Server.CreateObject("ADODB.Command")
+        cmd.ActiveConnection = db
+        cmd.CommandText = "UPDATE VehicleRequests SET " & _
+                         "start_date = ?, end_date = ?, purpose = ?, " & _
+                         "start_location = ?, destination = ?, distance = ?, " & _
+                         "toll_fee = ?, parking_fee = ?, title = ?, " & _
+                         "fuel_cost = ?, total_cost = ? " & _
+                         "WHERE request_id = ?"
         
         ' 파라미터 추가
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@start_date", 7, 1, , startDate)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@end_date", 7, 1, , endDate)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@purpose", 200, 1, 100, purpose)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@start_location", 200, 1, 100, startLocation)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@destination", 200, 1, 100, destination)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@distance", 6, 1, , distance)
-        updateCmd.Parameters.Append updateCmd.CreateParameter("@request_id", 3, 1, , CLng(requestId))
+        cmd.Parameters.Append cmd.CreateParameter("@start_date", 7, 1, , startDate)
+        cmd.Parameters.Append cmd.CreateParameter("@end_date", 7, 1, , endDate)
+        cmd.Parameters.Append cmd.CreateParameter("@purpose", 200, 1, 100, purpose)
+        cmd.Parameters.Append cmd.CreateParameter("@start_location", 200, 1, 100, startLocation)
+        cmd.Parameters.Append cmd.CreateParameter("@destination", 200, 1, 100, destination)
+        cmd.Parameters.Append cmd.CreateParameter("@distance", 6, 1, , distance)
+        cmd.Parameters.Append cmd.CreateParameter("@toll_fee", 6, 1, , tollFee)
+        cmd.Parameters.Append cmd.CreateParameter("@parking_fee", 6, 1, , parkingFee)
+        cmd.Parameters.Append cmd.CreateParameter("@title", 200, 1, 200, title)
+        cmd.Parameters.Append cmd.CreateParameter("@fuel_cost", 6, 1, , fuelCost)
+        cmd.Parameters.Append cmd.CreateParameter("@total_cost", 6, 1, , total_cost)
+        cmd.Parameters.Append cmd.CreateParameter("@request_id", 3, 1, , CLng(requestId))
         
-        ' 명령 실행
         On Error Resume Next
-        updateCmd.Execute
+        cmd.Execute
         
-        If Err.Number <> 0 Then
-            errorMsg = "차량 이용 신청서 수정 중 오류가 발생했습니다: " & Err.Description
-        Else
+        If Err.Number = 0 Then
+            db.CommitTrans
             successMsg = "차량 이용 신청서가 성공적으로 수정되었습니다."
             
             ' 활동 로그 기록
             Dim totalAmount
-            totalAmount = distance * fuelRate
+            totalAmount = (distance * fuelRate) + tollFee + parkingFee
             LogActivity Session("user_id"), "차량이용신청수정", "개인차량 이용 신청서 수정 (ID: " & requestId & ", 거리: " & distance & "km, 총액: " & FormatNumber(totalAmount) & "원)"
             
             ' 상세 페이지로 리디렉션
-            RedirectTo("vehicle_request_view.asp?id=" & requestId)
+            Response.Redirect("vehicle_request_view.asp?id=" & requestId)
+        Else
+            db.RollbackTrans
+            errorMsg = "차량 이용 신청서 수정 중 오류가 발생했습니다: " & Err.Description
         End If
         On Error GoTo 0
     End If
@@ -168,33 +191,48 @@ On Error GoTo 0
                 <div class="form-row" style="display: flex; gap: 10px;">
                     <div class="form-group" style="flex: 1;">
                         <label class="shadcn-input-label" for="start_date">시작일자</label>
-                        <input class="shadcn-input" type="date" id="start_date" name="start_date" value="<%= FormatDate(startDate) %>">
+                        <input class="shadcn-input" type="date" id="start_date" name="start_date" value="<%= FormatDateTime(rs("start_date"), 2) %>">
                     </div>
                     
                     <div class="form-group" style="flex: 1;">
                         <label class="shadcn-input-label" for="end_date">종료일자</label>
-                        <input class="shadcn-input" type="date" id="end_date" name="end_date" value="<%= FormatDate(endDate) %>">
+                        <input class="shadcn-input" type="date" id="end_date" name="end_date" value="<%= FormatDateTime(rs("end_date"), 2) %>">
                     </div>
                 </div>
                 
                 <div class="form-group">
+                    <label class="shadcn-input-label" for="title">제목</label>
+                    <input class="shadcn-input" type="text" id="title" name="title" placeholder="제목을 입력하세요" value="<%= rs("title") %>">
+                </div>
+                
+                <div class="form-group">
                     <label class="shadcn-input-label" for="purpose">업무 목적</label>
-                    <input class="shadcn-input" type="text" id="purpose" name="purpose" placeholder="업무 목적을 입력하세요" value="<%= purpose %>">
+                    <input class="shadcn-input" type="text" id="purpose" name="purpose" placeholder="업무 목적을 입력하세요" value="<%= rs("purpose") %>">
                 </div>
                 
                 <div class="form-group">
                     <label class="shadcn-input-label" for="start_location">출발지</label>
-                    <input class="shadcn-input" type="text" id="start_location" name="start_location" placeholder="출발지를 입력하세요" value="<%= startLocation %>">
+                    <input class="shadcn-input" type="text" id="start_location" name="start_location" placeholder="출발지를 입력하세요" value="<%= rs("start_location") %>">
                 </div>
                 
                 <div class="form-group">
                     <label class="shadcn-input-label" for="destination">목적지</label>
-                    <input class="shadcn-input" type="text" id="destination" name="destination" placeholder="목적지를 입력하세요" value="<%= destination %>">
+                    <input class="shadcn-input" type="text" id="destination" name="destination" placeholder="목적지를 입력하세요" value="<%= rs("destination") %>">
                 </div>
                 
                 <div class="form-group">
                     <label class="shadcn-input-label" for="distance">운행거리 (km)</label>
-                    <input class="shadcn-input" type="text" id="distance" name="distance" placeholder="운행거리를 입력하세요" value="<%= distance %>" onkeyup="cleanNumberInput(this); calculateAmount()">
+                    <input class="shadcn-input" type="text" id="distance" name="distance" placeholder="운행거리를 입력하세요" value="<%= rs("distance") %>" onkeyup="cleanNumberInput(this); calculateAmount()">
+                </div>
+                
+                <div class="form-group">
+                    <label class="shadcn-input-label" for="toll_fee">통행료</label>
+                    <input class="shadcn-input" type="text" id="toll_fee" name="toll_fee" placeholder="통행료를 입력하세요" value="<%= rs("toll_fee") %>" onkeyup="cleanNumberInput(this); calculateAmount()">
+                </div>
+                
+                <div class="form-group">
+                    <label class="shadcn-input-label" for="parking_fee">주차비</label>
+                    <input class="shadcn-input" type="text" id="parking_fee" name="parking_fee" placeholder="주차비를 입력하세요" value="<%= rs("parking_fee") %>" onkeyup="cleanNumberInput(this); calculateAmount()">
                 </div>
                 
                 <div class="form-group">
@@ -203,8 +241,8 @@ On Error GoTo 0
                 </div>
                 
                 <div class="form-group">
-                    <label class="shadcn-input-label" for="total_amount_display">총 예상 금액</label>
-                    <input class="shadcn-input" type="text" id="total_amount_display" readonly>
+                    <label class="shadcn-input-label" for="total_cost">총 예상 금액</label>
+                    <input class="shadcn-input" type="text" id="total_cost" readonly>
                 </div>
                 
                 <div class="shadcn-card-footer" style="margin-top: 1.5rem;">
@@ -225,6 +263,10 @@ On Error GoTo 0
         end_date: {
             required: true,
             message: '종료일자를 입력해주세요.'
+        },
+        title: {
+            required: true,
+            message: '제목을 입력해주세요.'
         },
         purpose: {
             required: true,
@@ -247,8 +289,7 @@ On Error GoTo 0
     
     // 폼 제출 전 숫자 필드의 쉼표 제거
     function prepareFormSubmission() {
-        // 숫자 입력 필드의 쉼표 제거
-        const numericFields = ['distance'];
+        const numericFields = ['distance', 'toll_fee', 'parking_fee'];
         numericFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
             if (field) {
@@ -260,16 +301,20 @@ On Error GoTo 0
     // 총 금액 계산
     function calculateAmount() {
         const distanceInput = document.getElementById('distance').value || '0';
+        const tollFeeInput = document.getElementById('toll_fee').value || '0';
+        const parkingFeeInput = document.getElementById('parking_fee').value || '0';
         const fuelRateInput = document.getElementById('fuel_rate').value || '0';
         
         // 쉼표 제거 후 숫자로 변환
         const distance = parseFloat(distanceInput.replace(/,/g, '')) || 0;
+        const tollFee = parseFloat(tollFeeInput.replace(/,/g, '')) || 0;
+        const parkingFee = parseFloat(parkingFeeInput.replace(/,/g, '')) || 0;
         const fuelRate = parseFloat(fuelRateInput.replace(/,/g, '')) || 0;
         
-        const totalAmount = distance * fuelRate;
+        const totalAmount = (distance * fuelRate) + tollFee + parkingFee;
         
         // 화면에는 포맷된 금액 표시
-        document.getElementById('total_amount_display').value = totalAmount.toLocaleString('ko-KR');
+        document.getElementById('total_cost').value = totalAmount.toLocaleString('ko-KR');
     }
     
     // 숫자 입력 필드에서 쉼표 제거하는 함수
@@ -303,11 +348,21 @@ On Error GoTo 0
             input.setSelectionRange(newCursorPos, newCursorPos);
         }
     }
-    
-    // 페이지 로딩 시 초기 계산
-    document.addEventListener('DOMContentLoaded', function() {
+
+    // 페이지 로드 시 초기화
+    window.onload = function() {
         calculateAmount();
-    });
+    };
 </script>
+
+<%
+' 사용한 Recordset 닫기
+If IsObject(rs) Then
+    If rs.State = 1 Then
+        rs.Close
+    End If
+    Set rs = Nothing
+End If
+%>
 
 <!--#include file="../includes/footer.asp"--> 

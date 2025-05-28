@@ -76,54 +76,13 @@ If TypeName(dbSchema) <> "String" Or Len(dbSchema) = 0 Then
 End If
 
 ' 사용자 정보 조회
-SQL = "SELECT user_id, name, email, department_id, created_at, job_grade " & _
+SQL = "SELECT user_id, name, email, phone, department_id, created_at, job_grade " & _
       "FROM " & dbSchema & ".Users " & _
       "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
 
 On Error Resume Next
 Set rs = db.Execute(SQL)
 
-' 오류 발생 시 대체 테이블 시도 1
-If Err.Number <> 0 Then
-    Err.Clear
-    SQL = "SELECT user_id, name, email, department_id, created_at, job_grade " & _
-          "FROM " & dbSchema & ".User " & _
-          "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
-    Set rs = db.Execute(SQL)
-End If
-
-' 오류 발생 시 대체 테이블 시도 2
-If Err.Number <> 0 Then
-    Err.Clear
-    SQL = "SELECT id as user_id, name, email, department_id, created_at, job_grade " & _
-          "FROM " & dbSchema & ".UserInfo " & _
-          "WHERE id = '" & PreventSQLInjection(userId) & "'"
-    Set rs = db.Execute(SQL)
-End If
-
-' 테이블이 없거나 데이터가 없는 경우 임시 데이터 생성
-If Err.Number <> 0 Or rs.EOF Then
-    Err.Clear
-    
-    ' 임시 레코드셋 생성
-    Set rs = Server.CreateObject("ADODB.Recordset")
-    rs.Fields.Append "user_id", 200, 50
-    rs.Fields.Append "name", 200, 100
-    rs.Fields.Append "email", 200, 100
-    rs.Fields.Append "department_id", 3
-    rs.Fields.Append "created_at", 7
-    rs.Fields.Append "job_grade", 3
-    rs.Open
-    
-    rs.AddNew
-    rs("user_id") = userId
-    rs("name") = "테스트 사용자"
-    rs("email") = "user@example.com"
-    rs("department_id") = 1
-    rs("created_at") = Now()
-    rs("job_grade") = 1
-    rs.Update
-End If
 
 ' 부서 목록 가져오기
 Dim deptRS, deptSQL
@@ -138,78 +97,12 @@ If Err.Number <> 0 Then
     Set deptRS = db.Execute(deptSQL)
 End If
 
-' 모든 시도 실패 시 임시 부서 데이터 생성
-If Err.Number <> 0 Then
-    Err.Clear
-    Set deptRS = Server.CreateObject("ADODB.Recordset")
-    deptRS.Fields.Append "department_id", 3
-    deptRS.Fields.Append "name", 200, 100
-    deptRS.Open
-    
-    deptRS.AddNew : deptRS("department_id") = 1 : deptRS("name") = "인사팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 2 : deptRS("name") = "재무팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 3 : deptRS("name") = "영업팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 4 : deptRS("name") = "마케팅팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 5 : deptRS("name") = "개발팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 6 : deptRS("name") = "디자인팀" : deptRS.Update
-    deptRS.AddNew : deptRS("department_id") = 7 : deptRS("name") = "경영지원팀" : deptRS.Update
-End If
-
 ' 직급 목록 가져오기
 Dim gradeRS, gradeSQL
-gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".JobGrade ORDER BY job_grade_id"
+gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grade ORDER BY job_grade_id"
 On Error Resume Next
 Set gradeRS = db.Execute(gradeSQL)
 
-' 직급 테이블이 없는 경우 대체 테이블 시도
-If Err.Number <> 0 Then
-    Err.Clear
-    gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".JobGrades ORDER BY job_grade_id"
-    Set gradeRS = db.Execute(gradeSQL)
-End If
-
-' 모든 시도 실패 시 임시 직급 데이터 생성
-If Err.Number <> 0 Then
-    Err.Clear
-    Set gradeRS = Server.CreateObject("ADODB.Recordset")
-    gradeRS.Fields.Append "job_grade_id", 3
-    gradeRS.Fields.Append "name", 200, 100
-    gradeRS.Open
-    
-    gradeRS.AddNew : gradeRS("job_grade_id") = 1 : gradeRS("name") = "사원" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 2 : gradeRS("name") = "대리" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 3 : gradeRS("name") = "과장" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 4 : gradeRS("name") = "차장" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 5 : gradeRS("name") = "부장" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 6 : gradeRS("name") = "이사" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 7 : gradeRS("name") = "상무" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 8 : gradeRS("name") = "전무" : gradeRS.Update
-    gradeRS.AddNew : gradeRS("job_grade_id") = 9 : gradeRS("name") = "대표" : gradeRS.Update
-    
-    ' 직급 테이블 생성 시도
-    On Error Resume Next
-    Dim createSQL
-    createSQL = "IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='JobGrade' AND xtype='U') " & _
-                "BEGIN " & _
-                "CREATE TABLE [dbo].[JobGrade]( " & _
-                "[job_grade_id] [int] IDENTITY(1,1) NOT NULL, " & _
-                "[name] [nvarchar](50) NOT NULL, " & _
-                "[created_at] [datetime] DEFAULT GETDATE(), " & _
-                "CONSTRAINT [PK_JobGrade] PRIMARY KEY CLUSTERED ([job_grade_id] ASC) " & _
-                ") " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'사원') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'대리') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'과장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'차장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'부장') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'이사') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'상무') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'전무') " & _
-                "INSERT INTO [dbo].[JobGrade] ([name]) VALUES (N'대표') " & _
-                "END"
-    db.Execute(createSQL)
-    Err.Clear
-End If
 
 ' 비밀번호 변경 처리
 If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_type") = "password_change" Then
@@ -292,12 +185,12 @@ End If
 
 ' 프로필 정보 수정 처리
 If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_type") = "profile_update" Then
-    Dim profilePassword, newName, newEmail, newDepartmentId, newJobGrade
+    Dim profilePassword, newName, newEmail, newDepartmentId, newjob_grade
     profilePassword = Request.Form("profile_password")
     newName = Request.Form("name")
     newEmail = Request.Form("email")
     newDepartmentId = Request.Form("department_id")
-    newJobGrade = Request.Form("job_grade")
+    newjob_grade = Request.Form("job_grade")
     
     ' 입력값 검증
     If profilePassword = "" Then
@@ -335,23 +228,12 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" And Request.Form("form_typ
                         "SET name = '" & PreventSQLInjection(newName) & "', " & _
                         "email = '" & PreventSQLInjection(newEmail) & "', " & _
                         "department_id = " & PreventSQLInjection(newDepartmentId) & ", " & _
-                        "job_grade = " & PreventSQLInjection(newJobGrade) & " " & _
+                        "job_grade = " & PreventSQLInjection(newjob_grade) & " " & _
                         "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
             
             On Error Resume Next
             db.Execute(profileUpdateSql)
             
-            ' 오류 발생 시 대체 테이블 시도
-            If Err.Number <> 0 Then
-                Err.Clear
-                profileUpdateSql = "UPDATE " & dbSchema & ".User " & _
-                            "SET name = '" & PreventSQLInjection(newName) & "', " & _
-                            "email = '" & PreventSQLInjection(newEmail) & "', " & _
-                            "department_id = " & PreventSQLInjection(newDepartmentId) & ", " & _
-                            "job_grade = " & PreventSQLInjection(newJobGrade) & " " & _
-                            "WHERE user_id = '" & PreventSQLInjection(userId) & "'"
-                db.Execute(profileUpdateSql)
-            End If
             
             ' 성공 메시지 설정
             If Err.Number = 0 Then
@@ -395,33 +277,27 @@ Function GetDepartmentName(deptId)
         Loop
     End If
     
-    ' 부서를 찾지 못한 경우
-    GetDepartmentName = deptId & "번 부서"
 End Function
-
-' 직급명 가져오기 함수
-Function GetJobGradeName(jobGradeId)
-    ' NULL 또는 빈 값 처리
-    If IsNull(jobGradeId) Or jobGradeId = "" Then
-        GetJobGradeName = "-"
+Function Getjob_gradeName(job_gradeId)
+    If IsNull(job_gradeId) Or job_gradeId = "" Then
+        Getjob_gradeName = "-"
         Exit Function
     End If
-    
-    ' 주어진 job_grade_id에 해당하는 직급명 찾기
-    If Not gradeRS.BOF Then
-        gradeRS.MoveFirst
-        Do Until gradeRS.EOF
-            If CStr(gradeRS("job_grade_id")) = CStr(jobGradeId) Then
-                GetJobGradeName = gradeRS("name")
-                Exit Function
-            End If
-            gradeRS.MoveNext
-        Loop
+
+    Dim sql, rsTemp
+    sql = "SELECT name FROM job_grade WHERE job_grade_id = " & job_gradeId
+    Set rsTemp = db.Execute(sql)
+
+    If Not rsTemp.EOF Then
+        Getjob_gradeName = rsTemp("name")
+    Else
+        Getjob_gradeName = "-"
     End If
-    
-    ' 직급을 찾지 못한 경우
-    GetJobGradeName = jobGradeId & "번 직급"
+
+    rsTemp.Close
+    Set rsTemp = Nothing
 End Function
+
 
 ' 오류 처리 재설정
 On Error GoTo 0
@@ -497,12 +373,16 @@ End If
                             <td><%= rs("email") %></td>
                         </tr>
                         <tr>
+                            <th>전화번호</th>
+                            <td><%= rs("phone") %></td>
+                        </tr>
+                        <tr>
                             <th>부서</th>
                             <td><%= GetDepartmentName(rs("department_id")) %></td>
                         </tr>
                         <tr>
                             <th>직급</th>
-                            <td><%= GetJobGradeName(rs("job_grade")) %></td>
+                            <td><%= Getjob_gradeName(rs("job_grade")) %></td>
                         </tr>
                         <tr>
                             <th>가입일</th>
@@ -526,6 +406,11 @@ End If
                         <div class="form-group">
                             <label class="form-label">이메일</label>
                             <input type="email" name="email" class="form-input" value="<%= rs("email") %>" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">전화번호</label>
+                            <input type="text" name="phone" class="form-input" value="<%= rs("phone") %>" required>
                         </div>
                         
                         <div class="form-group">

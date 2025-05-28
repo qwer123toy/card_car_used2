@@ -38,125 +38,89 @@ userDeptName = "부서 정보 없음"
 SQL = "SELECT u.name, u.department_id, d.name AS department_name FROM Users u " & _
       "LEFT JOIN Department d ON u.department_id = d.department_id " & _
       "WHERE u.user_id = '" & Session("user_id") & "'"
+      ' 사용자 정보 조회
+      Dim userSQL, userRS
+      userSQL = "SELECT u.name, u.department_id, d.name AS department_name FROM Users u " & _
+                "LEFT JOIN Department d ON u.department_id = d.department_id " & _
+                "WHERE u.user_id = '" & Session("user_id") & "'"
+      Set userRS = db99.Execute(userSQL)
       
-' 파라미터화된 쿼리 사용을 위해 명령 객체 생성
-Dim cmd
-Set cmd = Server.CreateObject("ADODB.Command")
-cmd.ActiveConnection = db
-cmd.CommandText = "SELECT u.name, u.department_id, d.name AS department_name FROM Users u " & _
-                 "LEFT JOIN Department d ON u.department_id = d.department_id " & _
-                 "WHERE u.user_id = ?"
-cmd.Parameters.Append cmd.CreateParameter("@user_id", 200, 1, 30, Session("user_id"))
-
-' 명령 실행
-Set rs = cmd.Execute()
-
-' DB 조회에 성공했고 사용자 정보가 있는 경우
-If Err.Number = 0 And Not rs.EOF Then
-    userName = rs("name")
-    userDeptId = rs("department_id")
-    
-    ' NULL 값 처리
-    If Not IsNull(rs("department_name")) Then
-    userDeptName = rs("department_name")
-End If
-    
-rs.Close
-End If
-
-' 최근 카드 사용 내역 조회 시도
-Dim recentCardRS
-Set recentCardRS = Server.CreateObject("ADODB.Recordset")
-
-' 빈 레코드셋 초기화 (오류 발생 시 이 레코드셋 사용)
-recentCardRS.Fields.Append "usage_id", 3 ' adInteger
-recentCardRS.Fields.Append "usage_date", 7 ' adDate
-recentCardRS.Fields.Append "amount", 6 ' adCurrency
-recentCardRS.Fields.Append "account_name", 200, 100 ' adVarChar
-recentCardRS.Open
-
-' 실제 데이터 조회 시도
-Dim recentCardCmd
-Set recentCardCmd = Server.CreateObject("ADODB.Command")
-recentCardCmd.ActiveConnection = db
-recentCardCmd.CommandText = "SELECT TOP 5 c.usage_id, c.usage_date, c.amount, ca.account_name " & _
+      If Not userRS.EOF Then
+          userName = userRS("name")
+          userDeptId = userRS("department_id")
+          If Not IsNull(userRS("department_name")) Then
+              userDeptName = userRS("department_name")
+          End If
+          userRS.Close
+      End If
+      
+      ' 최근 카드 사용 내역 조회
+      Dim recentCardRS, cardSQL
+      cardSQL = "SELECT TOP 5 c.usage_id, c.usage_date, c.amount, ca.account_name, ca.issuer, c.title " & _
                 "FROM CardUsage c " & _
                 "JOIN CardAccount ca ON c.card_id = ca.card_id " & _
-                          "WHERE c.user_id = ? " & _
+                "WHERE c.user_id = '" & Session("user_id") & "' " & _
                 "ORDER BY c.usage_date DESC"
-recentCardCmd.Parameters.Append recentCardCmd.CreateParameter("@user_id", 200, 1, 30, Session("user_id"))
-
-On Error Resume Next
-Dim tempRS
-Set tempRS = recentCardCmd.Execute()
-
-' 데이터 조회 성공 시 임시 레코드셋에서 실제 레코드셋으로 데이터 복사
-If Err.Number = 0 And Not tempRS.EOF Then
-    ' 기존 빈 레코드셋 닫고 정상 레코드셋으로 대체
-    recentCardRS.Close
-    Set recentCardRS = tempRS
-End If
-On Error GoTo 0
-
-' 최근 차량 사용 내역 조회 시도
-Dim recentVehicleRS
-Set recentVehicleRS = Server.CreateObject("ADODB.Recordset")
-
-' 빈 레코드셋 초기화 (오류 발생 시 이 레코드셋 사용)
-recentVehicleRS.Fields.Append "request_id", 3 ' adInteger
-recentVehicleRS.Fields.Append "request_date", 7 ' adDate
-recentVehicleRS.Fields.Append "purpose", 200, 100 ' adVarChar
-recentVehicleRS.Fields.Append "approval_status", 200, 20 ' adVarChar
-recentVehicleRS.Open
-
-' 실제 데이터 조회 시도
-Dim recentVehicleCmd
-Set recentVehicleCmd = Server.CreateObject("ADODB.Command")
-recentVehicleCmd.ActiveConnection = db
-recentVehicleCmd.CommandText = "SELECT TOP 5 v.request_id, v.request_date, v.purpose, v.approval_status " & _
+      Set recentCardRS = db99.Execute(cardSQL)
+      
+      ' 최근 차량 사용 내역 조회
+      Dim recentVehicleRS, vehicleSQL
+      vehicleSQL = "SELECT TOP 5 v.request_id, v.request_date, v.purpose, v.approval_status, " & _
+                   "v.distance, ISNULL(fr.rate, 2000) as fuel_rate " & _
                    "FROM VehicleRequests v " & _
-                            "WHERE v.user_id = ? AND v.is_deleted = 0 " & _
+                   "LEFT JOIN (SELECT TOP 1 * FROM FuelRate ORDER BY date DESC) fr ON 1=1 " & _
+                   "WHERE v.user_id = '" & Session("user_id") & "' AND v.is_deleted = 0 " & _
                    "ORDER BY v.request_date DESC"
-recentVehicleCmd.Parameters.Append recentVehicleCmd.CreateParameter("@user_id", 200, 1, 30, Session("user_id"))
-
-On Error Resume Next
-Dim tempVehicleRS
-Set tempVehicleRS = recentVehicleCmd.Execute()
-
-' 데이터 조회 성공 시 임시 레코드셋에서 실제 레코드셋으로 데이터 복사
-If Err.Number = 0 And Not tempVehicleRS.EOF Then
-    ' 기존 빈 레코드셋 닫고 정상 레코드셋으로 대체
-    recentVehicleRS.Close
-    Set recentVehicleRS = tempVehicleRS
-End If
-
-' 결재 대기 문서 조회
-Dim approvalRS
-Set approvalRS = Server.CreateObject("ADODB.Recordset")
-
-' 빈 레코드셋 초기화 (오류 발생 시 이 레코드셋 사용)
-approvalRS.Fields.Append "approval_log_id", 3 ' adInteger
-approvalRS.Fields.Append "target_id", 3 ' adInteger
-approvalRS.Fields.Append "store_name", 200, 100 ' adVarChar
-approvalRS.Fields.Append "amount", 6 ' adCurrency
-approvalRS.Fields.Append "usage_date", 7 ' adDate
-approvalRS.Fields.Append "status", 200, 20 ' adVarChar
-approvalRS.Open
-
-' 실제 데이터 조회 시도
-
-On Error Resume Next
-Dim tempApprovalRS
-Set tempApprovalRS = approvalCmd.Execute()
-
-' 데이터 조회 성공 시 임시 레코드셋에서 실제 레코드셋으로 데이터 복사
-If Err.Number = 0 And Not tempApprovalRS.EOF Then
-    ' 기존 빈 레코드셋 닫고 정상 레코드셋으로 대체
-    approvalRS.Close
-    Set approvalRS = tempApprovalRS
-End If
-On Error GoTo 0
-%>
+      Set recentVehicleRS = db99.Execute(vehicleSQL)
+      
+      ' 결재 대기 문서 조회
+      Dim approvalPendingRS, approvalPendingSQL
+      approvalPendingSQL = "SELECT al.target_table_name, cu.usage_id as doc_id, cu.usage_date as doc_date, " & _
+                           "ISNULL(cu.title, cu.store_name) as title, cu.amount, " & _
+                           "u.name AS requester_name, d.name AS department_name, al.status " & _
+                           "FROM dbo.ApprovalLogs al " & _
+                           "JOIN dbo.CardUsage cu ON al.target_id = cu.usage_id AND al.target_table_name = 'CardUsage' " & _
+                           "JOIN dbo.Users u ON cu.user_id = u.user_id " & _
+                           "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                           "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                           "AND al.status IN ('대기', '반려') " & _
+                           "UNION ALL " & _
+                           "SELECT al.target_table_name, vr.request_id as doc_id, vr.start_date as doc_date, " & _
+                           "ISNULL(vr.title, vr.purpose) as title, (vr.distance * 2000) as amount, " & _
+                           "u.name AS requester_name, d.name AS department_name, al.status " & _
+                           "FROM dbo.ApprovalLogs al " & _
+                           "JOIN dbo.VehicleRequests vr ON al.target_id = vr.request_id AND al.target_table_name = 'VehicleRequests' " & _
+                           "JOIN dbo.Users u ON vr.user_id = u.user_id " & _
+                           "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                           "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                           "AND al.status IN ('대기', '반려') " & _
+                           "ORDER BY doc_date DESC"
+      Set approvalPendingRS = db99.Execute(approvalPendingSQL)
+      
+      ' 결재 완료 문서 조회
+      Dim approvalCompletedRS, approvalCompletedSQL
+      approvalCompletedSQL = "SELECT al.target_table_name, cu.usage_id as doc_id, cu.usage_date as doc_date, " & _
+                             "cu.store_name as title, cu.amount, " & _
+                             "u.name AS requester_name, d.name AS department_name, al.status, al.approved_at " & _
+                             "FROM dbo.ApprovalLogs al " & _
+                             "JOIN dbo.CardUsage cu ON al.target_id = cu.usage_id AND al.target_table_name = 'CardUsage' " & _
+                             "JOIN dbo.Users u ON cu.user_id = u.user_id " & _
+                             "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                             "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                             "AND al.status IN ('승인') " & _
+                             "UNION ALL " & _
+                             "SELECT al.target_table_name, vr.request_id as doc_id, vr.start_date as doc_date, " & _
+                             "ISNULL(vr.title, vr.purpose) as title, (vr.distance * 2000) as amount, " & _
+                             "u.name AS requester_name, d.name AS department_name, al.status, al.approved_at " & _
+                             "FROM dbo.ApprovalLogs al " & _
+                             "JOIN dbo.VehicleRequests vr ON al.target_id = vr.request_id AND al.target_table_name = 'VehicleRequests' " & _
+                             "JOIN dbo.Users u ON vr.user_id = u.user_id " & _
+                             "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                             "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                             "AND al.status IN ('승인') " & _
+                             "ORDER BY approved_at DESC"
+      Set approvalCompletedRS = db99.Execute(approvalCompletedSQL)
+      %>
 <!--#include file="../includes/header.asp"-->
 
 <div class="dashboard-container">
@@ -184,37 +148,48 @@ On Error GoTo 0
                 </div>
                 <div class="card-body">
                     <%
-                    ' 결재 대기 문서 조회
+                    ' 결재 대기 문서 조회 (카드 사용 내역)
                     Dim pendingSQL
-                    pendingSQL = "SELECT TOP 5 cu.usage_id, cu.usage_date, cu.store_name, cu.amount, " & _
+                    pendingSQL = "SELECT al.target_table_name, cu.usage_id as doc_id, cu.usage_date as doc_date, " & _
+                               "cu.store_name as title, cu.amount, " & _
                                "u.name AS requester_name, d.name AS department_name, al.status " & _
-                               "FROM dbo.CardUsage cu " & _
+                               "FROM dbo.ApprovalLogs al " & _
+                               "JOIN dbo.CardUsage cu ON al.target_id = cu.usage_id AND al.target_table_name = 'CardUsage' " & _
                                "JOIN dbo.Users u ON cu.user_id = u.user_id " & _
                                "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
-                               "JOIN dbo.ApprovalLogs al ON cu.usage_id = al.target_id " & _
-                               "WHERE al.target_table_name = 'CardUsage' " & _
-                               "AND al.approver_id = '" & Session("user_id") & "' " & _
+                               "WHERE al.approver_id = '" & Session("user_id") & "' " & _
                                "AND al.status IN ('대기', '반려') " & _
-                               "ORDER BY cu.usage_date DESC"
+                               
+                               "UNION ALL " & _
+                               
+                               "SELECT al.target_table_name, vr.request_id as doc_id, vr.start_date as doc_date, " & _
+                               "ISNULL(vr.title, vr.purpose) as title, (vr.distance * 2000) as amount, " & _
+                               "u.name AS requester_name, d.name AS department_name, al.status " & _
+                               "FROM dbo.ApprovalLogs al " & _
+                               "JOIN dbo.VehicleRequests vr ON al.target_id = vr.request_id AND al.target_table_name = 'VehicleRequests' " & _
+                               "JOIN dbo.Users u ON vr.user_id = u.user_id " & _
+                               "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                               "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                               "AND al.status IN ('대기', '반려') " & _
+                               
+                               "ORDER BY doc_date DESC"
                     
-                    Set rs = db.Execute(pendingSQL)
-                    
-                    If Not rs.EOF Then
-                        Do While Not rs.EOF
+                    If Not approvalPendingRS.EOF Then
+                        Do While Not approvalPendingRS.EOF
                     %>
                         <div class="approval-item">
                             <div class="approval-content">
                                 <div class="approval-header">
-                                    <span class="store-name"><%= rs("store_name") %></span>
-                                    <span class="amount"><%= FormatNumber(rs("amount")) %>원</span>
+                                    <span class="store-name"><%= approvalPendingRS("title") %></span>
+                                    <span class="amount"><%= FormatNumber(approvalPendingRS("amount")) %>원</span>
                                 </div>
                                 <div class="approval-info">
-                                    <span class="requester"><%= rs("requester_name") %> (<%= rs("department_name") %>)</span>
-                                    <span class="date"><%= FormatDateTime(rs("usage_date"), 2) %></span>
+                                    <span class="requester"><%= approvalPendingRS("requester_name") %> (<%= approvalPendingRS("department_name") %>)</span>
+                                    <span class="date"><%= FormatDateTime(approvalPendingRS("doc_date"), 2) %></span>
                                 </div>
                                 <% 
                                 Dim statusClass
-                                Select Case rs("status")
+                                Select Case approvalPendingRS("status")
                                     Case "승인"
                                         statusClass = "status-approved"
                                     Case "반려"
@@ -225,19 +200,19 @@ On Error GoTo 0
                                         statusClass = "status-other"
                                 End Select
                                 %>
-                                <span class="status-badge <%= statusClass %>"><%= rs("status") %></span>
+                                <span class="status-badge <%= statusClass %>"><%= approvalPendingRS("status") %></span>
+                                <span class="doc-type-badge"><%= IIf(approvalPendingRS("target_table_name")="CardUsage", "카드", "차량") %></span>
                             </div>
-                            <a href="approval_detail.asp?id=<%= rs("usage_id") %>" class="btn btn-sm btn-outline-primary">상세보기</a>
+                            <a href="approval_detail.asp?id=<%= approvalPendingRS("doc_id") %>&type=<%= approvalPendingRS("target_table_name") %>" class="btn btn-sm btn-outline-primary">상세보기</a>
                         </div>
                     <%
-                            rs.MoveNext
+                            approvalPendingRS.MoveNext
                         Loop
                     Else
                     %>
                         <div class="no-data">결재 대기 중인 문서가 없습니다.</div>
                     <%
                     End If
-                    rs.Close
                     %>
                 </div>
                 <div class="card-footer">
@@ -254,48 +229,60 @@ On Error GoTo 0
                     <%
                     ' 결재 완료 문서 조회
                     Dim completedSQL
-                    completedSQL = "SELECT TOP 5 cu.usage_id, cu.usage_date, cu.store_name, cu.amount, " & _
+                    completedSQL = "SELECT al.target_table_name, cu.usage_id as doc_id, cu.usage_date as doc_date, " & _
+                                 "cu.store_name as title, cu.amount, " & _
                                  "u.name AS requester_name, d.name AS department_name, al.status, " & _
                                  "al.approved_at " & _
-                                 "FROM dbo.CardUsage cu " & _
+                                 "FROM dbo.ApprovalLogs al " & _
+                                 "JOIN dbo.CardUsage cu ON al.target_id = cu.usage_id AND al.target_table_name = 'CardUsage' " & _
                                  "JOIN dbo.Users u ON cu.user_id = u.user_id " & _
                                  "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
-                                 "JOIN dbo.ApprovalLogs al ON cu.usage_id = al.target_id " & _
-                                 "WHERE al.target_table_name = 'CardUsage' " & _
-                                 "AND al.approver_id = '" & Session("user_id") & "' " & _
+                                 "WHERE al.approver_id = '" & Session("user_id") & "' " & _
                                  "AND al.status IN ('승인') " & _
-                                 "ORDER BY al.approved_at DESC"
+                                 
+                                 "UNION ALL " & _
+                                 
+                                 "SELECT al.target_table_name, vr.request_id as doc_id, vr.start_date as doc_date, " & _
+                                 "ISNULL(vr.title, vr.purpose) as title, (vr.distance * 2000) as amount, " & _
+                                 "u.name AS requester_name, d.name AS department_name, al.status, " & _
+                                 "al.approved_at " & _
+                                 "FROM dbo.ApprovalLogs al " & _
+                                 "JOIN dbo.VehicleRequests vr ON al.target_id = vr.request_id AND al.target_table_name = 'VehicleRequests' " & _
+                                 "JOIN dbo.Users u ON vr.user_id = u.user_id " & _
+                                 "LEFT JOIN dbo.Department d ON u.department_id = d.department_id " & _
+                                 "WHERE al.approver_id = '" & Session("user_id") & "' " & _
+                                 "AND al.status IN ('승인') " & _
+                                 
+                                 "ORDER BY approved_at DESC"
                     
-                    Set rs = db.Execute(completedSQL)
-                    
-                    If Not rs.EOF Then
-                        Do While Not rs.EOF
+                    If Not approvalCompletedRS.EOF Then
+                        Do While Not approvalCompletedRS.EOF
                     %>
                         <div class="approval-item">
                             <div class="approval-content">
                                 <div class="approval-header">
-                                    <span class="store-name"><%= rs("store_name") %></span>
-                                    <span class="amount"><%= FormatNumber(rs("amount")) %>원</span>
+                                    <span class="store-name"><%= approvalCompletedRS("title") %></span>
+                                    <span class="amount"><%= FormatNumber(approvalCompletedRS("amount")) %>원</span>
                                 </div>
                                 <div class="approval-info">
-                                    <span class="requester"><%= rs("requester_name") %> (<%= rs("department_name") %>)</span>
-                                    <span class="date"><%= FormatDateTime(rs("approved_at"), 2) %></span>
+                                    <span class="requester"><%= approvalCompletedRS("requester_name") %> (<%= approvalCompletedRS("department_name") %>)</span>
+                                    <span class="date"><%= FormatDateTime(approvalCompletedRS("approved_at"), 2) %></span>
                                 </div>
-                                <span class="status-badge <%= IIf(rs("status")="승인", "status-approved", "status-rejected") %>">
-                                    <%= rs("status") %>
+                                <span class="status-badge <%= IIf(approvalCompletedRS("status")="승인", "status-approved", "status-rejected") %>">
+                                    <%= approvalCompletedRS("status") %>
                                 </span>
+                                <span class="doc-type-badge"><%= IIf(approvalCompletedRS("target_table_name")="CardUsage", "카드", "차량") %></span>
                             </div>
-                            <a href="approval_detail.asp?id=<%= rs("usage_id") %>" class="btn btn-sm btn-outline-primary">상세보기</a>
+                            <a href="approval_detail.asp?id=<%= approvalCompletedRS("doc_id") %>&type=<%= approvalCompletedRS("target_table_name") %>" class="btn btn-sm btn-outline-primary">상세보기</a>
                         </div>
                     <%
-                            rs.MoveNext
+                            approvalCompletedRS.MoveNext
                         Loop
                     Else
                     %>
                         <div class="no-data">결재 완료한 문서가 없습니다.</div>
                     <%
                     End If
-                    rs.Close
                     %>
                 </div>
                 <div class="card-footer">
@@ -318,7 +305,8 @@ On Error GoTo 0
                             <div class="usage-item">
                                 <div class="usage-content">
                                     <div class="usage-header">
-                                        <span class="card-name"><%= recentCardRS("account_name") %></span>
+                                        <span class="card-name"><%= recentCardRS("title") %></span>
+                                        <span class="card-name"><%= recentCardRS("account_name") %> (<%= recentCardRS("issuer") %>)</span>
                                         <span class="amount"><%= FormatNumber(recentCardRS("amount")) %>원</span>
                                     </div>
                                     <div class="usage-date">
@@ -352,19 +340,23 @@ On Error GoTo 0
                                 <div class="usage-content">
                                     <div class="usage-header">
                                         <span class="purpose"><%= recentVehicleRS("purpose") %></span>
+                                        <span class="amount"><%= FormatNumber(CDbl(recentVehicleRS("distance")) * CDbl(recentVehicleRS("fuel_rate"))) %>원</span>
+                                    </div>
+                                    <div class="usage-subheader">
                                         <% 
                                         Select Case recentVehicleRS("approval_status")
                                             Case "승인"
                                                 Response.Write "<span class='status-badge status-approved'>"
                                             Case "반려"
                                                 Response.Write "<span class='status-badge status-rejected'>"
-                                            Case "작성중"
+                                            Case "대기"
                                                 Response.Write "<span class='status-badge status-pending'>"
                                             Case Else
                                                 Response.Write "<span class='status-badge status-other'>"
                                         End Select
                                         Response.Write recentVehicleRS("approval_status") & "</span>"
                                         %>
+                                        <span class="distance-info"><%= FormatNumber(recentVehicleRS("distance")) %>km</span>
                                     </div>
                                     <div class="usage-date">
                                         <%= FormatDateTime(recentVehicleRS("request_date"), 2) %>
@@ -490,6 +482,13 @@ On Error GoTo 0
     margin-bottom: 5px;
 }
 
+.usage-subheader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    align-items: center;
+}
+
 .store-name, .card-name, .purpose {
     font-weight: 500;
     color: #333;
@@ -498,6 +497,11 @@ On Error GoTo 0
 .amount {
     font-weight: 600;
     color: #2C3E50;
+}
+
+.distance-info {
+    font-size: 12px;
+    color: #666;
 }
 
 .approval-info, .usage-date {
@@ -511,6 +515,17 @@ On Error GoTo 0
     border-radius: 4px;
     font-size: 12px;
     font-weight: 500;
+}
+
+.doc-type-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: #E3F0FF;
+    color: #1B73E8;
+    margin-left: 4px;
 }
 
 .status-approved {

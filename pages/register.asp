@@ -27,22 +27,16 @@ End If
 
 ' 직급 목록 가져오기
 Dim gradeRS, gradeSQL
-gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grade ORDER BY job_grade_id"
+gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grade ORDER BY sort_order"
 On Error Resume Next
 Set gradeRS = db.Execute(gradeSQL)
 
-' 직급 테이블이 없는 경우 대체 테이블 시도
-If Err.Number <> 0 Then
-    Err.Clear
-    gradeSQL = "SELECT job_grade_id, name FROM " & dbSchema & ".job_grades ORDER BY job_grade_id"
-    Set gradeRS = db.Execute(gradeSQL)
-End If
 
 
 
 Dim errorMsg, successMsg
 If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
-    Dim userId, password, confirmPassword, name, email, departmentId, job_gradeId
+    Dim userId, password, confirmPassword, name, email, phone, departmentId, job_gradeId
     
     userId = PreventSQLInjection(Request.Form("user_id"))
     password = PreventSQLInjection(Request.Form("password"))
@@ -51,7 +45,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
     email = PreventSQLInjection(Request.Form("email"))
     departmentId = PreventSQLInjection(Request.Form("department_id"))
     job_gradeId = PreventSQLInjection(Request.Form("job_grade_id"))
-    
+    phone = PreventSQLInjection(Request.Form("phone"))
     If userId = "" Or password = "" Or confirmPassword = "" Or name = "" Then
         errorMsg = "필수 항목을 모두 입력해주세요."
     ElseIf password <> confirmPassword Then
@@ -78,8 +72,12 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             Dim SQL
             
             ' 이메일, 부서 ID, 직급 ID 처리
-            Dim emailValue, deptIdValue, gradeIdValue
-            
+            Dim emailValue, deptIdValue, gradeIdValue, phoneValue
+            If phone = "" Then
+                phoneValue = "NULL"
+            Else
+                phoneValue = "'" & phone & "'"
+            End If
             If email = "" Then
                 emailValue = "NULL"
             Else
@@ -98,18 +96,26 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 gradeIdValue = job_gradeId
             End If
             
-            SQL = "INSERT INTO Users (user_id, password, name, email, department_id, job_grade, created_at) " & _
-                  "VALUES (?, ?, ?, " & emailValue & ", " & deptIdValue & ", " & gradeIdValue & ", GETDATE())"
+            SQL = "INSERT INTO Users (user_id, password, name, email, phone, department_id, job_grade, created_at) " & _
+            "VALUES (?, ?, ?, ?, ?, ?, ?, GETDATE())"
             
             Set cmd = Server.CreateObject("ADODB.Command")
             cmd.ActiveConnection = db
             cmd.CommandText = SQL
+            cmd.CommandType = 1 ' adCmdText
+            
             cmd.Parameters.Append cmd.CreateParameter("@user_id", 200, 1, 30, userId)
             cmd.Parameters.Append cmd.CreateParameter("@password", 200, 1, 100, password)
             cmd.Parameters.Append cmd.CreateParameter("@name", 200, 1, 50, name)
+            cmd.Parameters.Append cmd.CreateParameter("@email", 200, 1, 100, email)
+            cmd.Parameters.Append cmd.CreateParameter("@phone", 200, 1, 20, phone)
+            If departmentId = "" Then departmentId = Null
+            cmd.Parameters.Append cmd.CreateParameter("@department_id", 3, 1, , departmentId) ' adInteger
+            If job_gradeId = "" Then job_gradeId = Null
+            cmd.Parameters.Append cmd.CreateParameter("@job_grade", 3, 1, , job_gradeId) ' adInteger
             
-            On Error Resume Next
             cmd.Execute
+      
             
             If Err.Number <> 0 Then
                 errorMsg = "등록 중 오류가 발생했습니다: " & Err.Description
@@ -287,6 +293,43 @@ End If
 }
 </style>
 
+<script>
+    function formatPhoneNumber(input) {
+        let value = input.value.replace(/\D/g, ""); // 숫자 이외 제거
+        if (value.length > 11) value = value.slice(0, 11); // 최대 11자리 제한
+    
+        let result = "";
+    
+        if (value.startsWith("02")) {
+            // 서울번호(예외 케이스)
+            if (value.length > 2) {
+                result += value.substr(0, 2) + "-";
+                if (value.length > 5) {
+                    result += value.substr(2, 3) + "-" + value.substr(5);
+                } else {
+                    result += value.substr(2);
+                }
+            } else {
+                result += value;
+            }
+        } else {
+            // 일반적인 휴대폰 번호
+            if (value.length > 3) {
+                result += value.substr(0, 3) + "-";
+                if (value.length > 7) {
+                    result += value.substr(3, 4) + "-" + value.substr(7);
+                } else {
+                    result += value.substr(3);
+                }
+            } else {
+                result = value;
+            }
+        }
+    
+        input.value = result;
+    }
+    </script>
+
 <div class="container">
     <div class="page-header">
         <h2 class="page-title">회원가입</h2>
@@ -339,6 +382,12 @@ End If
                         <div class="form-group">
                             <label class="form-label">이메일</label>
                             <input type="email" name="email" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">전화번호</label>
+                            <input type="text" name="phone" class="form-control" id="phone" maxlength="13" oninput="formatPhoneNumber(this);">
                         </div>
                     </div>
                     <div class="col-md-6">

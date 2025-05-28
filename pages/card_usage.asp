@@ -142,16 +142,26 @@ Dim totalPages
 totalPages = Ceil(totalRows / pageSize)
 If totalPages < 1 Then totalPages = 1
 
-' 카드 사용 내역 조회
+' 카드 사용 내역 조회 - 페이징 처리 포함
 Dim SQL, rs, sqlDebugInfo
 
-' 기본 쿼리 - 실제 DB 구조에 맞게 필드 지정
-SQL = "SELECT usage_id, user_id, card_id, usage_date, amount, store_name, purpose, " & _
-      "linked_table, linked_id, approval_status, department_id, expense_category_id " & _
-      "FROM " & dbSchema & ".CardUsage" & searchCondition
-
-' 정렬 추가
-SQL = SQL & " ORDER BY usage_date DESC, usage_id DESC"
+' 페이징 처리된 쿼리
+If currentPage = 1 Then
+    ' 첫 페이지
+    SQL = "SELECT TOP " & pageSize & " usage_id, user_id, card_id, usage_date, amount, store_name, purpose, title, " & _
+          "linked_table, linked_id, approval_status, department_id, expense_category_id " & _
+          "FROM " & dbSchema & ".CardUsage" & searchCondition & _
+          " ORDER BY usage_date DESC, usage_id DESC"
+Else
+    ' 2페이지 이상 - NOT IN 방식 사용
+    SQL = "SELECT TOP " & pageSize & " usage_id, user_id, card_id, usage_date, amount, store_name, purpose, title, " & _
+          "linked_table, linked_id, approval_status, department_id, expense_category_id " & _
+          "FROM " & dbSchema & ".CardUsage" & searchCondition & _
+          " AND usage_id NOT IN (" & _
+          "SELECT TOP " & startRow & " usage_id FROM " & dbSchema & ".CardUsage" & searchCondition & _
+          " ORDER BY usage_date DESC, usage_id DESC)" & _
+          " ORDER BY usage_date DESC, usage_id DESC"
+End If
 
 ' 디버깅용 SQL 정보 저장
 sqlDebugInfo = "실행 쿼리: " & SQL
@@ -162,16 +172,10 @@ On Error GoTo 0
 
 ' 카드 목록 조회
 Dim cardSQL, cardRS
-cardSQL = "SELECT card_id, account_name FROM " & dbSchema & ".CardAccount ORDER BY account_name"
+cardSQL = "SELECT card_id, account_name, issuer FROM " & dbSchema & ".CardAccount ORDER BY account_name"
 
 On Error Resume Next
-Set cardRS = db.Execute(cardSQL)
-If Err.Number <> 0 Then
-    Err.Clear
-    ' 대체 테이블 또는 뷰로 시도
-    cardSQL = "SELECT card_id, name AS account_name FROM " & dbSchema & ".Card ORDER BY name"
-    Set cardRS = db.Execute(cardSQL)
-End If
+Set cardRS = db99.Execute(cardSQL)
 
 ' 계정 과목 목록 조회
 Dim accountTypeSQL, accountTypeRS
@@ -194,7 +198,9 @@ End If
 
 ' 카드 계정 이름과 계정 타입 이름 조회를 위한 함수
 Function GetCardName(cardId)
-    Dim cardName
+    Dim cardNumber, cardName
+    
+    cardNumber = "알 수 없음"
     cardName = "알 수 없음"
     
     ' 메모리 객체에서 먼저 찾기
@@ -202,7 +208,9 @@ Function GetCardName(cardId)
         cardRS.MoveFirst
         Do While Not cardRS.EOF
             If CStr(cardRS("card_id")) = CStr(cardId) Then
-                cardName = cardRS("account_name")
+                cardNumber = cardRS("account_name")
+                cardName = cardRS("issuer")
+
                 Exit Do
             End If
             cardRS.MoveNext
@@ -210,24 +218,17 @@ Function GetCardName(cardId)
     End If
     
     ' 메모리에 없으면 DB에서 직접 조회
-    If cardName = "알 수 없음" Then
+    If cardNumber = "알 수 없음" Then
         Dim directSQL, directRS
-        directSQL = "SELECT account_name FROM " & dbSchema & ".CardAccount WHERE card_id = " & cardId
+        directSQL = "SELECT account_name, issuer FROM " & dbSchema & ".CardAccount WHERE card_id = " & cardId
         
         On Error Resume Next
-        Set directRS = db.Execute(directSQL)
+        Set directRS = db99.Execute(directSQL)
         
-        If Err.Number <> 0 Then
-            Err.Clear
-            ' 대체 테이블 시도
-            directSQL = "SELECT name AS account_name FROM " & dbSchema & ".Card WHERE card_id = " & cardId
-            Set directRS = db.Execute(directSQL)
-        End If
         
         If Err.Number = 0 And Not directRS.EOF Then
-            cardName = directRS("account_name")
-        Else
-            cardName = cardId
+            cardNumber = directRS("account_name")
+            cardName = directRS("issuer")
         End If
         
         If Not directRS Is Nothing Then
@@ -239,7 +240,7 @@ Function GetCardName(cardId)
         On Error GoTo 0
     End If
     
-    GetCardName = cardName
+    GetCardName = cardName & " (" & cardNumber & ")"
 End Function
 
 ' 계정 유형 정보는 expense_category_id를 통해 얻습니다
@@ -314,225 +315,642 @@ On Error GoTo 0
 %>
 <!--#include file="../includes/header.asp"-->
 
-<div class="card-usage-container">
-    <div class="shadcn-card" style="margin-bottom: 20px;">
-        <div class="shadcn-card-header">
-            <h2 class="shadcn-card-title">카드 사용 내역</h2>
-            <p class="shadcn-card-description">법인 카드 사용 내역을 조회합니다.</p>
+<style>
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.page-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2C3E50;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.btn-group-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-nav {
+    padding: 0.875rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    background: #fff;
+    overflow: hidden;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #E8F2FF 0%, #F0F8FF 100%);
+    border-bottom: 1px solid #E2E8F0;
+    padding: 1.5rem;
+}
+
+.card-header h5 {
+    color: #475569;
+    font-weight: 600;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #CBD5E1;
+    background: #F8FAFC;
+    color: #64748B;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+
+.filter-btn:hover {
+    background: #E2E8F0;
+    border-color: #94A3B8;
+    color: #475569;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+.filter-btn.active {
+    background: #E0F2FE;
+    border-color: #0EA5E9;
+    color: #0369A1;
+    box-shadow: 0 2px 8px rgba(14,165,233,0.15);
+}
+
+.badge {
+    padding: 0.375rem 0.75rem;
+    font-weight: 500;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.badge-success {
+    background: #DCFCE7;
+    color: #166534;
+    border: 1px solid #BBF7D0;
+}
+
+.badge-danger {
+    background: #FEE2E2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+}
+
+.badge-primary {
+    background: #DBEAFE;
+    color: #1D4ED8;
+    border: 1px solid #BFDBFE;
+}
+
+.badge-info {
+    background: #E0F2FE;
+    color: #0369A1;
+    border: 1px solid #BAE6FD;
+}
+
+.badge-secondary {
+    background: #F1F5F9;
+    color: #475569;
+    border: 1px solid #E2E8F0;
+}
+
+.badge-outline {
+    background: transparent;
+    border: 1px solid #E5E7EB;
+    color: #6B7280;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+    color: #475569;
+    font-weight: 600;
+    border: none;
+    padding: 0.875rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.table td {
+    padding: 1rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #E9ECEF;
+    color: #2C3E50;
+}
+
+.table tbody tr:hover {
+    background-color: #F8FAFC;
+    transition: background-color 0.2s ease;
+}
+
+.date-cell {
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 120px;
+}
+
+.amount-cell {
+    font-weight: 600;
+    color: #059669;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.btn-outline-primary {
+    border: 2px solid #4A90E2;
+    color: #4A90E2;
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background: #4A90E2;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74,144,226,0.2);
+}
+
+.btn-secondary {
+    background: #6B7280;
+    color: white;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background: #4B5563;
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    background: #4A90E2;
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: #357ABD;
+    transform: translateY(-2px);
+}
+
+.pagination {
+    margin-top: 2rem;
+}
+
+.page-link {
+    border: none;
+    padding: 1rem 1.25rem;
+    margin: 0 0.25rem;
+    border-radius: 8px;
+    color: #2C3E50;
+    background: #F8FAFC;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.page-link:hover {
+    background: #E9ECEF;
+    color: #2C3E50;
+    transform: translateY(-2px);
+}
+
+.page-item.active .page-link {
+    background: #4A90E2;
+    color: white;
+    box-shadow: 0 4px 12px rgba(74,144,226,0.2);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #64748B;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    color: #CBD5E1;
+}
+
+.empty-state h5 {
+    color: #64748B;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: #94A3B8;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #2C3E50;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #E9ECEF;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #4A90E2;
+    box-shadow: 0 0 0 3px rgba(74,144,226,0.1);
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid #E9ECEF;
+    color: #6B7280;
+}
+
+.btn-outline:hover {
+    background: #F3F4F6;
+    color: #374151;
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.alert-error {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #B91C1C;
+}
+
+.alert-success {
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    color: #166534;
+}
+</style>
+
+<div class="container">
+    <div class="page-header">
+        <h2 class="page-title">
+            <i class="fas fa-credit-card me-2"></i>카드 사용 내역
+        </h2>
+        <div class="btn-group-nav">
+            <a href="dashboard.asp" class="btn btn-secondary btn-nav">
+                <i class="fas fa-home me-1"></i> 대시보드
+            </a>
+            <a href="card_usage_add.asp" class="btn btn-primary btn-nav">
+                <i class="fas fa-plus me-1"></i> 새 사용 내역 등록
+            </a>
         </div>
-        
-        <% If errorMsg <> "" Then %>
-        <div class="shadcn-alert shadcn-alert-error">
-            <div>
-                <span class="shadcn-alert-title">오류</span>
-                <span class="shadcn-alert-description"><%= errorMsg %></span>
-            </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-search me-2"></i>검색 조건</h5>
         </div>
-        <% End If %>
+        <div class="card-body">
         
-        <% If successMsg <> "" Then %>
-        <div class="shadcn-alert shadcn-alert-success">
-            <div>
-                <span class="shadcn-alert-title">성공</span>
-                <span class="shadcn-alert-description"><%= successMsg %></span>
-            </div>
-        </div>
-        <% End If %>
-        
-        <!-- 검색 폼 -->
-        <div class="shadcn-card-content">
-            <form id="searchForm" method="get" action="card_usage.asp">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px;">
-                    <div class="form-group">
-                        <label class="shadcn-input-label" for="card_id">카드</label>
-                        <select class="shadcn-select" id="card_id" name="card_id">
-                            <option value="">전체</option>
-                            <% 
-                            If Not cardRS Is Nothing And Not cardRS.EOF Then
-                                cardRS.MoveFirst
-                                Do While Not cardRS.EOF 
-                                    Dim cardSelected
-                                    cardSelected = ""
-                                    If CStr(cardRS("card_id")) = searchCardId Then
-                                        cardSelected = "selected"
-                                    End If
-                            %>
-                                <option value="<%= cardRS("card_id") %>" <%= cardSelected %>><%= cardRS("account_name") %></option>
-                            <% 
-                                    cardRS.MoveNext
-                                Loop
-                            End If
-                            %>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="shadcn-input-label" for="account_type_id">계정 과목</label>
-                        <select class="shadcn-select" id="account_type_id" name="account_type_id">
-                            <option value="">전체</option>
-                            <% 
-                            If Not accountTypeRS Is Nothing And Not accountTypeRS.EOF Then
-                                accountTypeRS.MoveFirst
-                                Do While Not accountTypeRS.EOF 
-                                    Dim typeSelected
-                                    typeSelected = ""
-                                    If CStr(accountTypeRS("account_type_id")) = searchAccountType Then
-                                        typeSelected = "selected"
-                                    End If
-                            %>
-                                <option value="<%= accountTypeRS("account_type_id") %>" <%= typeSelected %>><%= accountTypeRS("type_name") %></option>
-                            <% 
-                                    accountTypeRS.MoveNext
-                                Loop
-                            End If
-                            %>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="shadcn-input-label" for="start_date">시작일</label>
-                        <input class="shadcn-input" type="date" id="start_date" name="start_date" value="<%= searchStartDate %>">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="shadcn-input-label" for="end_date">종료일</label>
-                        <input class="shadcn-input" type="date" id="end_date" name="end_date" value="<%= searchEndDate %>">
-                    </div>
+            <% If errorMsg <> "" Then %>
+            <div class="alert alert-error">
+                <div>
+                    <span><strong>오류:</strong> <%= errorMsg %></span>
                 </div>
-                
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="submit" class="shadcn-btn shadcn-btn-primary">검색</button>
-                    <a href="card_usage.asp" class="shadcn-btn shadcn-btn-outline">초기화</a>
-                    <a href="card_usage_add.asp" class="shadcn-btn shadcn-btn-secondary">새 내역 등록</a>
+            </div>
+            <% End If %>
+            
+            <% If successMsg <> "" Then %>
+            <div class="alert alert-success">
+                <div>
+                    <span><strong>성공:</strong> <%= successMsg %></span>
+                </div>
+            </div>
+            <% End If %>
+            
+            <!-- 검색 폼 -->
+            <form id="searchForm" method="get" action="card_usage.asp">
+                <div class="row justify-content-center">
+                    <div class="col-lg-11">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="card_id">카드</label>
+                                    <select id="card_id" name="card_id">
+                                        <option value="">전체</option>
+                                        <% 
+                                        If Not cardRS Is Nothing And Not cardRS.EOF Then
+                                            cardRS.MoveFirst
+                                            Do While Not cardRS.EOF 
+                                                Dim cardSelected
+                                                cardSelected = ""
+                                                If CStr(cardRS("card_id")) = searchCardId Then
+                                                    cardSelected = "selected"
+                                                End If
+                                        %>
+                                            <option value="<%= cardRS("card_id") %>" <%= cardSelected %>><%= cardRS("account_name") %></option>
+                                        <% 
+                                                cardRS.MoveNext
+                                            Loop
+                                        End If
+                                        %>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="account_type_id">계정 과목</label>
+                                    <select id="account_type_id" name="account_type_id">
+                                        <option value="">전체</option>
+                                        <% 
+                                        If Not accountTypeRS Is Nothing And Not accountTypeRS.EOF Then
+                                            accountTypeRS.MoveFirst
+                                            Do While Not accountTypeRS.EOF 
+                                                Dim typeSelected
+                                                typeSelected = ""
+                                                If CStr(accountTypeRS("account_type_id")) = searchAccountType Then
+                                                    typeSelected = "selected"
+                                                End If
+                                        %>
+                                            <option value="<%= accountTypeRS("account_type_id") %>" <%= typeSelected %>><%= accountTypeRS("type_name") %></option>
+                                        <% 
+                                                accountTypeRS.MoveNext
+                                            Loop
+                                        End If
+                                        %>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="start_date">시작일</label>
+                                    <input type="date" id="start_date" name="start_date" value="<%= searchStartDate %>">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="end_date">종료일</label>
+                                    <input type="date" id="end_date" name="end_date" value="<%= searchEndDate %>">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 d-flex align-items-end">
+                                <div class="form-group w-100">
+                                    <button type="submit" class="btn btn-primary w-100 mb-2">
+                                        <i class="fas fa-search me-1"></i>검색
+                                    </button>
+                                    <a href="card_usage.asp" class="btn btn-outline w-100">
+                                        <i class="fas fa-refresh me-1"></i>초기화
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
     
     <!-- 카드 사용 내역 목록 -->
-    <div class="shadcn-card">
-        <div class="shadcn-card-content">
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-list me-2"></i>카드 사용 내역</h5>
+        </div>
+        <div class="card-body">
             <% 
             ' 디버깅용 DB 연결 상태와 에러 표시
             If Not dbConnected Then 
             %>
-                <div class="shadcn-alert shadcn-alert-error">
+                <div class="alert alert-error">
                     <div>
-                        <span class="shadcn-alert-title">데이터베이스 연결 오류</span>
-                        <span class="shadcn-alert-description"><%= dbErrorMsg %></span>
+                        <span><strong>데이터베이스 연결 오류:</strong> <%= dbErrorMsg %></span>
                     </div>
                 </div>
             <% End If %>
             
             <% If Err.Number <> 0 Then %>
-                <div class="shadcn-alert shadcn-alert-error">
+                <div class="alert alert-error">
                     <div>
-                        <span class="shadcn-alert-title">SQL 오류 (번호: <%= Err.Number %>)</span>
-                        <span class="shadcn-alert-description"><%= Err.Description %></span>
+                        <span><strong>SQL 오류 (번호: <%= Err.Number %>):</strong> <%= Err.Description %></span>
                     </div>
                 </div>
             <% End If %>
             
-            <table class="shadcn-table">
-                <thead class="shadcn-table-header">
-                    <tr>
-                        <th>사용일자</th>
-                        <th>카드</th>
-                        <th>계정 과목</th>
-                        <th>사용처</th>
-                        <th>사용 목적</th>
-                        <th>금액</th>
-                        <th>상태</th>
-                        <th>관리</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% 
-                    If Not rs.EOF Then
-                        Do While Not rs.EOF 
-                    %>
-                    <tr>
-                        <td><%= FormatDate(rs("usage_date")) %></td>
-                        <td><%= GetCardName(rs("card_id")) %></td>
-                        <td><%= GetExpenseCategoryName(rs("expense_category_id")) %></td>
-                        <td><% 
-                            If Not IsNull(rs("store_name")) Then 
-                                Response.Write(rs("store_name"))
-                            Else
-                                Response.Write("-")
-                            End If
-                        %></td>
-                        <td><% 
-                            If Not IsNull(rs("purpose")) Then 
-                                Response.Write(rs("purpose"))
-                            Else
-                                Response.Write("-")
-                            End If
-                        %></td>
-                        <td><%= FormatNumber(rs("amount")) %></td>
-                        <td><% 
-                            If Not IsNull(rs("approval_status")) Then 
-                                Response.Write(rs("approval_status"))
-                            Else
-                                Response.Write("처리중")
-                            End If
-                        %></td>
-                        <td>
-                            <div style="display: flex; gap: 5px;">
-                                <a href="card_usage_view.asp?id=<%= rs("usage_id") %>" class="shadcn-btn shadcn-btn-outline" style="padding: 2px 8px; font-size: 0.75rem;">상세</a>
-                                <% If rs("approval_status") = "대기" Or rs("approval_status") = "반려" Then %>
-                                    <a href="card_usage_edit.asp?id=<%= rs("usage_id") %>" class="shadcn-btn shadcn-btn-secondary" style="padding: 2px 8px; font-size: 0.75rem;">수정</a>
-                                <% End If %>
-                            </div>
-                        </td>
-                    </tr>
-                    <% 
-                        rs.MoveNext
-                        Loop 
-                    Else 
-                    %>
-                    <tr>
-                        <td colspan="8" class="text-center">등록된 카드 사용 내역이 없습니다.</td>
-                    </tr>
-                    <% End If %>
-                </tbody>
-            </table>
+            <% 
+            If rs.EOF Then
+            %>
+                <div class="empty-state">
+                    <i class="fas fa-credit-card"></i>
+                    <h5>등록된 카드 사용 내역이 없습니다</h5>
+                    <p>새로운 카드 사용 내역을 등록해보세요.</p>
+                </div>
+            <% Else %>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th style="text-align: center;">사용일자</th>
+                                <th style="text-align: center;">카드</th>
+                                <th style="text-align: center;">계정 과목</th>
+                                <th style="text-align: center;">제목</th>
+                                <th style="text-align: center;">사용처</th>
+                                <th style="text-align: center;">사용 목적</th>
+                                <th style="text-align: center;">금액</th>
+                                <th style="text-align: center;">상태</th>
+                                <th style="text-align: center;">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% 
+                            Do While Not rs.EOF 
+                            %>
+                            <tr>
+                                <td style="text-align: center;" class="date-cell"><%= FormatDate(rs("usage_date")) %></td>
+                                <td style="text-align: center;"><%= GetCardName(rs("card_id")) %></td>
+                                <td style="text-align: center;"><%= GetExpenseCategoryName(rs("expense_category_id")) %></td>
+                                <td style="text-align: center;"><% 
+                                    If Not IsNull(rs("title")) Then 
+                                        Response.Write(rs("title"))
+                                    ElseIf Not IsNull(rs("store_name")) Then
+                                        Response.Write(rs("store_name"))
+                                    Else
+                                        Response.Write("-")
+                                    End If
+                                %></td>
+                                <td style="text-align: center;"><% 
+                                    If Not IsNull(rs("store_name")) Then 
+                                        Response.Write(rs("store_name"))
+                                    Else
+                                        Response.Write("-")
+                                    End If
+                                %></td>
+                                <td style="text-align: center;"><% 
+                                    If Not IsNull(rs("purpose")) Then 
+                                        Response.Write(rs("purpose"))
+                                    Else
+                                        Response.Write("-")
+                                    End If
+                                %></td>
+                                <td style="text-align: center;" class="amount-cell"><%= FormatNumber(rs("amount")) %>원</td>
+                                <td style="text-align: center;">
+                                    <% 
+                                    Dim statusClass, statusText
+                                    If Not IsNull(rs("approval_status")) Then 
+                                        statusText = rs("approval_status")
+                                    Else
+                                        statusText = "처리중"
+                                    End If
+                                    
+                                    Select Case statusText
+                                        Case "승인"
+                                            statusClass = "badge badge-success"
+                                        Case "반려"
+                                            statusClass = "badge badge-danger"
+                                        Case "대기"
+                                            statusClass = "badge badge-info"
+                                        Case Else
+                                            statusClass = "badge badge-secondary"
+                                    End Select
+                                    %>
+                                    <span class="<%= statusClass %>">
+                                        <% If statusText = "승인" Then %>
+                                            <i class="fas fa-check me-1"></i>
+                                        <% ElseIf statusText = "반려" Then %>
+                                            <i class="fas fa-times me-1"></i>
+                                        <% ElseIf statusText = "대기" Then %>
+                                            <i class="fas fa-clock me-1"></i>
+                                        <% Else %>
+                                            <i class="fas fa-edit me-1"></i>
+                                        <% End If %>
+                                        <%= statusText %>
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <div style="display: flex; gap: 5px; justify-content: center;">
+                                        <a href="card_usage_view.asp?id=<%= rs("usage_id") %>" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i>상세
+                                        </a>
+                                        <% If rs("approval_status") <> "완료" Then %>
+                                        <a href="card_usage_edit.asp?id=<%= rs("usage_id") %>" class="btn btn-sm btn-secondary">
+                                            <i class="fas fa-edit me-1"></i>수정
+                                        </a>
+                                        <% End If %>
+                                    </div>
+                                </td>
+                            </tr>
+                            <% 
+                                rs.MoveNext
+                                Loop 
+                            %>
+                        </tbody>
+                    </table>
+                </div>
+            <% End If %>
             
             <!-- 페이징 -->
             <% If totalPages > 1 Then %>
-            <div style="display: flex; justify-content: center; margin-top: 20px;">
-                <div class="pagination">
-                    <% 
-                    Dim pageStart, pageEnd, i
-                    
-                    ' 표시할 페이지 범위 설정
-                    pageStart = currentPage - 5
-                    If pageStart < 1 Then pageStart = 1
-                    
-                    pageEnd = pageStart + 9
-                    If pageEnd > totalPages Then pageEnd = totalPages
-                    
-                    ' 페이지 링크 생성
-                    If currentPage > 1 Then
-                    %>
-                        <a href="card_usage.asp?page=1&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>" class="shadcn-btn shadcn-btn-outline" style="padding: 5px 10px; margin: 0 2px;">처음</a>
-                        <a href="card_usage.asp?page=<%= currentPage - 1 %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>" class="shadcn-btn shadcn-btn-outline" style="padding: 5px 10px; margin: 0 2px;">이전</a>
-                    <% End If %>
-                    
-                    <% For i = pageStart To pageEnd %>
-                        <% If i = CInt(currentPage) Then %>
-                            <span class="shadcn-btn shadcn-btn-primary" style="padding: 5px 10px; margin: 0 2px;"><%= i %></span>
-                        <% Else %>
-                            <a href="card_usage.asp?page=<%= i %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>" class="shadcn-btn shadcn-btn-outline" style="padding: 5px 10px; margin: 0 2px;"><%= i %></a>
-                        <% End If %>
-                    <% Next %>
-                    
-                    <% If CInt(currentPage) < totalPages Then %>
-                        <a href="card_usage.asp?page=<%= currentPage + 1 %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>" class="shadcn-btn shadcn-btn-outline" style="padding: 5px 10px; margin: 0 2px;">다음</a>
-                        <a href="card_usage.asp?page=<%= totalPages %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>" class="shadcn-btn shadcn-btn-outline" style="padding: 5px 10px; margin: 0 2px;">마지막</a>
-                    <% End If %>
+                <div class="d-flex justify-content-center mt-4">
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination">
+                            <% If currentPage > 1 Then %>
+                                <li class="page-item">
+                                    <a class="page-link" href="card_usage.asp?page=<%= currentPage - 1 %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>">
+                                        <i class="fas fa-chevron-left"></i> 이전
+                                    </a>
+                                </li>
+                            <% End If %>
+
+                            <% 
+                            Dim startPage, endPage
+                            startPage = ((currentPage - 1) \ 5) * 5 + 1
+                            endPage = startPage + 4
+                            If endPage > totalPages Then endPage = totalPages
+
+                            For i = startPage To endPage
+                            %>
+                                <li class="page-item <%= IIf(i = currentPage, "active", "") %>">
+                                    <a class="page-link" href="card_usage.asp?page=<%= i %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>"><%= i %></a>
+                                </li>
+                            <% Next %>
+
+                            <% If currentPage < totalPages Then %>
+                                <li class="page-item">
+                                    <a class="page-link" href="card_usage.asp?page=<%= currentPage + 1 %>&card_id=<%= searchCardId %>&start_date=<%= searchStartDate %>&end_date=<%= searchEndDate %>&account_type_id=<%= searchAccountType %>">
+                                        다음 <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                            <% End If %>
+                        </ul>
+                    </nav>
                 </div>
-            </div>
             <% End If %>
         </div>
     </div>

@@ -13,37 +13,71 @@ If Not IsAuthenticated() Then
 End If
 
 ' 파라미터 검증
-Dim usageId
-usageId = Request.QueryString("id")
-If usageId = "" Then
+Dim docId, docType
+docId = Request.QueryString("id")
+docType = Request.QueryString("type")
+
+If docId = "" Then
     Response.Write "<script>alert('잘못된 접근입니다.'); history.back();</script>"
     Response.End
 End If
 
-' 카드 사용 내역 조회
+' 문서 타입이 지정되지 않은 경우 기본값으로 CardUsage 설정
+If docType = "" Then
+    docType = "CardUsage"
+End If
+
 Dim usageRS, usageSQL
-usageSQL = "SELECT cu.*, ca.account_name, u.name AS user_name, u.department_id, " & _
-          "d.name AS department_name, u.job_grade, j.name AS job_grade_name, " & _
-          "u.user_id AS requester_id, u.name AS requester_name, " & _
-          "d.department_id AS requester_dept_id, " & _
-          "cu.created_at, cu.approval_status " & _
-          "FROM " & dbSchema & ".CardUsage cu " & _
-          "JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
-          "JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
-          "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
-          "LEFT JOIN " & dbSchema & ".Job_Grade j ON u.job_grade = j.job_grade_id " & _
-          "WHERE cu.usage_id = ? "
+Dim isCardUsage, isVehicleRequest
+
+' 문서 타입에 따라 조회 SQL 지정
+isCardUsage = (docType = "CardUsage")
+isVehicleRequest = (docType = "VehicleRequests")
+
+If isCardUsage Then
+    ' 카드 사용 내역 조회
+    usageSQL = "SELECT cu.*, ca.account_name, u.name AS user_name, u.department_id, " & _
+            "d.name AS department_name, u.job_grade, j.name AS job_grade_name, " & _
+            "u.user_id AS requester_id, u.name AS requester_name, " & _
+            "d.department_id AS requester_dept_id, " & _
+            "cu.created_at, cu.approval_status " & _
+            "FROM " & dbSchema & ".CardUsage cu " & _
+            "JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
+            "JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
+            "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
+            "LEFT JOIN " & dbSchema & ".Job_Grade j ON u.job_grade = j.job_grade_id " & _
+            "WHERE cu.usage_id = ? "
+
+ElseIf isVehicleRequest Then
+    ' 차량이용 신청 조회
+    usageSQL = "SELECT vr.*, u.name AS user_name, u.department_id, " & _
+            "d.name AS department_name, u.job_grade, j.name AS job_grade_name, " & _
+            "u.user_id AS requester_id, u.name AS requester_name, " & _
+            "d.department_id AS requester_dept_id, " & _
+            "vr.created_at, vr.approval_status, " & _
+            "fr.rate AS fuel_rate " & _
+            "FROM " & dbSchema & ".VehicleRequests vr " & _
+            "JOIN " & dbSchema & ".Users u ON vr.user_id = u.user_id " & _
+            "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
+            "LEFT JOIN " & dbSchema & ".Job_Grade j ON u.job_grade = j.job_grade_id " & _
+            "LEFT JOIN " & dbSchema & ".FuelRate fr ON fr.date <= vr.start_date " & _
+            "WHERE vr.request_id = ? " & _
+            "ORDER BY fr.date DESC"
+Else
+    Response.Write "<script>alert('잘못된 문서 유형입니다.'); history.back();</script>"
+    Response.End
+End If
 
 Dim cmd
 Set cmd = Server.CreateObject("ADODB.Command")
 cmd.ActiveConnection = db
 cmd.CommandText = usageSQL
-cmd.Parameters.Append cmd.CreateParameter("@usage_id", 3, 1, , usageId)
+cmd.Parameters.Append cmd.CreateParameter("@doc_id", 3, 1, , docId)
 
 Set usageRS = cmd.Execute()
 
 If usageRS.EOF Then
-    Response.Write "<script>alert('존재하지 않는 카드 사용 내역입니다.'); history.back();</script>"
+    Response.Write "<script>alert('존재하지 않는 문서입니다.'); history.back();</script>"
     Response.End
 End If
 
@@ -55,13 +89,14 @@ approvalSQL = "SELECT al.*, u.name AS approver_name, u.department_id, " & _
              "JOIN " & dbSchema & ".Users u ON al.approver_id = u.user_id " & _
              "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
              "LEFT JOIN " & dbSchema & ".Job_Grade j ON u.job_grade = j.job_grade_id " & _
-             "WHERE al.target_table_name = 'CardUsage' AND al.target_id = ? " & _
+             "WHERE al.target_table_name = ? AND al.target_id = ? " & _
              "ORDER BY al.approval_step"
 
 Set cmd = Server.CreateObject("ADODB.Command")
 cmd.ActiveConnection = db
 cmd.CommandText = approvalSQL
-cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , usageId)
+cmd.Parameters.Append cmd.CreateParameter("@target_table_name", 200, 1, 30, docType)
+cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , docId)
 
 Set approvalRS = cmd.Execute()
 
@@ -134,7 +169,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                               "   WHEN approver_id = ? THEN GETDATE() " & _
                               "   ELSE NULL " & _
                               "END " & _
-                              "WHERE target_table_name = 'CardUsage' AND target_id = ?"
+                              "WHERE target_table_name = ? AND target_id = ?"
 
                 Set cmd = Server.CreateObject("ADODB.Command")
                 cmd.ActiveConnection = db
@@ -142,33 +177,41 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 cmd.Parameters.Append cmd.CreateParameter("@approver_id", 200, 1, 30, Session("user_id"))
                 cmd.Parameters.Append cmd.CreateParameter("@comments", 200, 1, 500, comments)
                 cmd.Parameters.Append cmd.CreateParameter("@approver_id2", 200, 1, 30, Session("user_id"))
-                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , usageId)
+                cmd.Parameters.Append cmd.CreateParameter("@target_table_name", 200, 1, 30, docType)
+                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , docId)
                 cmd.Execute
 
-                ' CardUsage 상태 업데이트
-                Dim updateUsageSQL
-                updateUsageSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
-                                "approval_status = '반려' " & _
-                                "WHERE usage_id = ?"
+                ' 대상 테이블 상태 업데이트
+                Dim updateDocSQL
+                If isCardUsage Then
+                    updateDocSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
+                                  "approval_status = '반려' " & _
+                                  "WHERE usage_id = ?"
+                ElseIf isVehicleRequest Then
+                    updateDocSQL = "UPDATE " & dbSchema & ".VehicleRequests SET " & _
+                                  "approval_status = '반려' " & _
+                                  "WHERE request_id = ?"
+                End If
                 
                 Set cmd = Server.CreateObject("ADODB.Command")
                 cmd.ActiveConnection = db
-                cmd.CommandText = updateUsageSQL
-                cmd.Parameters.Append cmd.CreateParameter("@usage_id", 3, 1, , usageId)
+                cmd.CommandText = updateDocSQL
+                cmd.Parameters.Append cmd.CreateParameter("@doc_id", 3, 1, , docId)
                 cmd.Execute
             Else
                 ' 승인 처리
                 Dim updateSQL
                 updateSQL = "UPDATE " & dbSchema & ".ApprovalLogs SET " & _
                            "status = ?, comments = ?, approved_at = GETDATE() " & _
-                           "WHERE target_table_name = 'CardUsage' AND target_id = ? AND approver_id = ?"
+                           "WHERE target_table_name = ? AND target_id = ? AND approver_id = ?"
                 
                 Set cmd = Server.CreateObject("ADODB.Command")
                 cmd.ActiveConnection = db
                 cmd.CommandText = updateSQL
                 cmd.Parameters.Append cmd.CreateParameter("@status", 200, 1, 20, action)
                 cmd.Parameters.Append cmd.CreateParameter("@comments", 200, 1, 500, comments)
-                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , usageId)
+                cmd.Parameters.Append cmd.CreateParameter("@target_table_name", 200, 1, 30, docType)
+                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , docId)
                 cmd.Parameters.Append cmd.CreateParameter("@approver_id", 200, 1, 30, Session("user_id"))
                 cmd.Execute
                 
@@ -176,22 +219,29 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 Dim isLastApprover, totalApprovers, rs
                 Set cmd = Server.CreateObject("ADODB.Command")
                 cmd.ActiveConnection = db
-                cmd.CommandText = "SELECT COUNT(*) AS total FROM " & dbSchema & ".ApprovalLogs WHERE target_table_name = 'CardUsage' AND target_id = ?"
-                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , usageId)
+                cmd.CommandText = "SELECT COUNT(*) AS total FROM " & dbSchema & ".ApprovalLogs WHERE target_table_name = ? AND target_id = ?"
+                cmd.Parameters.Append cmd.CreateParameter("@target_table_name", 200, 1, 30, docType)
+                cmd.Parameters.Append cmd.CreateParameter("@target_id", 3, 1, , docId)
                 Set rs = cmd.Execute()
                 totalApprovers = rs("total")
                 
                 isLastApprover = (myApprovalStep = totalApprovers)
                 
                 If isLastApprover Then
-                    updateSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
-                              "approval_status = '완료' " & _
-                              "WHERE usage_id = ?"
+                    If isCardUsage Then
+                        updateSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
+                                "approval_status = '완료' " & _
+                                "WHERE usage_id = ?"
+                    ElseIf isVehicleRequest Then
+                        updateSQL = "UPDATE " & dbSchema & ".VehicleRequests SET " & _
+                                "approval_status = '완료' " & _
+                                "WHERE request_id = ?"
+                    End If
                     
                     Set cmd = Server.CreateObject("ADODB.Command")
                     cmd.ActiveConnection = db
                     cmd.CommandText = updateSQL
-                    cmd.Parameters.Append cmd.CreateParameter("@usage_id", 3, 1, , usageId)
+                    cmd.Parameters.Append cmd.CreateParameter("@doc_id", 3, 1, , docId)
                     cmd.Execute
                 End If
             End If
@@ -199,7 +249,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             If Err.Number = 0 Then
                 db.CommitTrans
                 successMsg = "결재가 처리되었습니다."
-                Response.Redirect Request.ServerVariables("URL") & "?id=" & usageId
+                Response.Redirect Request.ServerVariables("URL") & "?id=" & docId & "&type=" & docType
             Else
                 db.RollbackTrans
                 errorMsg = "결재 처리 중 오류가 발생했습니다: " & Err.Description
@@ -407,6 +457,132 @@ End If
     color: #2C3E50;
     margin-bottom: 1rem;
     font-size: 0.95rem;
+}
+
+/* 결재선 표 스타일 */
+.approval-line-table-container {
+    border: 2px solid #E9ECEF;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.75rem;
+    background-color: #fff;
+}
+
+.approval-line-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+    table-layout: fixed;
+}
+
+.approval-cell {
+    border: 2px solid #2C3E50;
+    padding: 1rem;
+    text-align: center;
+    vertical-align: middle;
+    background: #fff;
+    position: relative;
+    min-height: 80px;
+    width: 20%; /* 5개 셀 동일 크기 */
+    overflow: hidden;
+    word-wrap: break-word;
+}
+
+.approval-cell .form-control {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.approval-cell .input-group {
+    max-width: 100%;
+}
+
+.approval-cell .input-group .form-control {
+    min-width: 0;
+    flex: 1;
+}
+
+/* 첫 번째 행 (직급) 스타일 */
+.position-row .approval-cell {
+    height: 50px;
+    font-weight: 600;
+    color: #2C3E50;
+    font-size: 1rem;
+    background: #F8FAFC;
+}
+
+/* 두 번째 행 (이름과 순서) 스타일 */
+.name-row .approval-cell {
+    height: 120px;
+    position: relative;
+    padding: 1.5rem 1rem;
+}
+
+.step-number {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: #4A90E2;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.name-cell .approver-name {
+    font-weight: 600;
+    color: #2C3E50;
+    font-size: 1rem;
+    margin-top: 10px;
+    line-height: 1.2;
+}
+
+.approval-status-info {
+    margin-top: 10px;
+}
+
+.approval-status-info .badge {
+    margin-bottom: 5px;
+    display: inline-block;
+}
+
+.approval-date {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-top: 5px;
+}
+
+.approval-comment {
+    font-size: 0.85rem;
+    color: #475569;
+    margin-top: 8px;
+    padding: 5px 8px;
+    background: #F1F5F9;
+    border-radius: 4px;
+    border-left: 3px solid #4A90E2;
+}
+
+.badge-success {
+    background: #DCFCE7 !important;
+    color: #166534 !important;
+    border: 1px solid #BBF7D0;
+}
+
+.badge-danger {
+    background: #FEE2E2 !important;
+    color: #DC2626 !important;
+    border: 1px solid #FECACA;
+}
+
+.badge-secondary {
+    background: #F1F5F9 !important;
+    color: #475569 !important;
+    border: 1px solid #E2E8F0;
     padding: 0.5rem 1rem;
     background: #E9ECEF;
     border-radius: 6px;
@@ -532,11 +708,23 @@ End If
 
 <div class="container">
     <div class="page-header">
-        <h2 class="page-title">카드 사용 내역 상세</h2>
+        <h2 class="page-title">
+            <% If isCardUsage Then %>
+            카드 사용 내역 상세
+            <% ElseIf isVehicleRequest Then %>
+            차량 이용 신청 상세
+            <% End If %>
+        </h2>
         <div class="btn-group-nav">
+            <% If isCardUsage Then %>
             <a href="card_usage.asp" class="btn btn-secondary btn-nav">
                 <i class="fas fa-list me-1"></i> 목록으로
             </a>
+            <% ElseIf isVehicleRequest Then %>
+            <a href="vehicle_request.asp" class="btn btn-secondary btn-nav">
+                <i class="fas fa-list me-1"></i> 목록으로
+            </a>
+            <% End If %>
             <a href="dashboard.asp" class="btn btn-secondary btn-nav">
                 <i class="fas fa-home me-1"></i> 대시보드
             </a>
@@ -554,221 +742,605 @@ End If
             <i class="fas fa-check-circle me-2"></i><%= successMsg %>
         </div>
     <% End If %>
-
-    <div class="card">
-        <div class="card-header">
-            <h5 class="card-title mb-0">기본 정보</h5>
+    
+        <!-- 결재 처리 섹션 -->
+        <% If canApprove And (myApprovalStatus = "대기" Or myApprovalStatus = "반려") Then %>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">결재 처리</h5>
+            </div>
+            <div class="card-body">
+                <div class="approval-line-table-container">
+                    <form method="post">
+                        <input type="hidden" name="doc_type" value="<%= docType %>">
+                        <table class="approval-line-table">
+                            <tbody>
+                                <tr>
+                                    <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 20%;">결재 의견</td>
+                                    <td class="approval-cell" colspan="4" style="text-align: left; padding: 1rem;">
+                                        <textarea class="form-control" id="comments" name="comments" rows="3" 
+                                                placeholder="결재 의견을 입력해주세요..." style="border: 1px solid #E9ECEF; width: 100%;"></textarea>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">결재 처리</td>
+                                    <td class="approval-cell" colspan="4" style="text-align: center; padding: 1.5rem;">
+                                        <button type="submit" name="action" value="승인" class="btn btn-success me-2">
+                                            <i class="fas fa-check me-2"></i> 승인
+                                        </button>
+                                        <button type="submit" name="action" value="반려" class="btn btn-danger me-2">
+                                            <i class="fas fa-times me-2"></i> 반려
+                                        </button>
+                                        <a href="dashboard.asp" class="btn btn-secondary">
+                                            <i class="fas fa-arrow-left me-2"></i> 취소
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
-                <form method="post" action="card_usage_update.asp">
-                    <input type="hidden" name="usage_id" value="<%= usageId %>">
-                    <table class="table table-bordered">
-                        <tr>
-                            <th style="width: 15%;">신청자</th>
-                            <td style="width: 35%;">
-                                <%= usageRS("user_name") %>
-                                (<%= usageRS("department_name") %> / <%= usageRS("job_grade_name") %>)
-                            </td>
-                            <th style="width: 15%;">상태</th>
-                            <td style="width: 35%;">
+        <% End If %>
+
+        <!-- 결재선 -->
+        <div class="card mb-2">
+
+            <div class="card-body" style="padding: 1rem;">
+                
+                    <table class="approval-line-table">
+                        <tbody>
+                            <!-- 첫 번째 행: 직급 (5개 고정) -->
+                            <tr class="position-row">
                                 <% 
-                                Dim statusClass
-                                Select Case usageRS("approval_status")
-                                    Case "승인"
-                                        statusClass = "bg-success"
-                                    Case "반려"
-                                        statusClass = "bg-danger"
-                                    Case "대기"
-                                        statusClass = "bg-secondary"
-                                    Case "완료"
-                                        statusClass = "bg-primary"
-                                End Select
-                                %>
-                                <span class="badge <%= statusClass %>">
-                                    <%= usageRS("approval_status") %>
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>카드 선택<span class="required-mark">*</span></th>
-                            <td>
-                                <select class="form-select" name="card_id" required>
-                                    <option value="">선택해주세요</option>
-                                    <% 
-                                    Dim cardSQL, cardRS
-                                    cardSQL = "SELECT card_id, account_name FROM " & dbSchema & ".CardAccount ORDER BY account_name"
-                                    Set cardRS = db.Execute(cardSQL)
-                                    Do While Not cardRS.EOF
-                                    %>
-                                    <option value="<%= cardRS("card_id") %>" <%= IIf(CStr(cardRS("card_id")) = CStr(usageRS("card_id")), "selected", "") %>>
-                                        <%= cardRS("account_name") %>
-                                    </option>
-                                    <%
-                                        cardRS.MoveNext
+                                ' 필드 존재 여부 확인 함수
+                                Function FieldExists(rs, fieldName)
+                                    Dim f
+                                    FieldExists = False
+                                    For Each f in rs.Fields
+                                        If LCase(f.Name) = LCase(fieldName) Then
+                                            FieldExists = True
+                                            Exit Function
+                                        End If
+                                    Next
+                                End Function
+                                
+                                ' 안전한 필드 접근 함수
+                                Function SafeField(rs, fieldName)
+                                    If FieldExists(rs, fieldName) And Not IsNull(rs(fieldName)) Then
+                                        SafeField = rs(fieldName)
+                                    Else
+                                        SafeField = ""
+                                    End If
+                                End Function
+                                
+                                ' 결재자 정보를 배열로 저장
+                                Dim approvers(5)
+                                Dim approverCount
+                                approverCount = 0
+                                
+                                If Not approvalRS.EOF Then
+                                    approvalRS.MoveFirst
+                                    Do While Not approvalRS.EOF And approverCount < 5
+                                        Set approvers(approverCount) = CreateObject("Scripting.Dictionary")
+                                        approvers(approverCount).Add "step", SafeField(approvalRS, "approval_step")
+                                        approvers(approverCount).Add "name", SafeField(approvalRS, "approver_name")
+                                        approvers(approverCount).Add "job_grade", SafeField(approvalRS, "job_grade_name")
+                                        approvers(approverCount).Add "status", SafeField(approvalRS, "status")
+                                        approvers(approverCount).Add "approved_at", SafeField(approvalRS, "approved_at")
+                                        approvers(approverCount).Add "comments", SafeField(approvalRS, "comments")
+                                        approverCount = approverCount + 1
+                                        approvalRS.MoveNext
                                     Loop
-                                    %>
-                                </select>
-                            </td>
-                            <th>사용일자<span class="required-mark">*</span></th>
-                            <td>
-                                <input type="date" name="usage_date" class="form-control" 
-                                       value="<%= FormatDateTime(usageRS("usage_date"), 2) %>" required>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>사용처<span class="required-mark">*</span></th>
-                            <td>
-                                <input type="text" name="store_name" class="form-control" 
-                                       value="<%= usageRS("store_name") %>" required>
-                            </td>
-                            <th>금액<span class="required-mark">*</span></th>
-                            <td>
-                                <div class="input-group">
-                                    <input type="text" name="amount" class="form-control text-end" 
-                                           value="<%= FormatNumber(usageRS("amount")) %>" required>
-                                    <span class="input-group-text">원</span>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>사용 목적<span class="required-mark">*</span></th>
-                            <td colspan="3">
-                                <textarea name="purpose" class="form-control" rows="3" required><%= usageRS("purpose") %></textarea>
-                            </td>
-                        </tr>
+                                    approvalRS.MoveFirst
+                                End If
+                                
+                                ' 5개 셀 고정으로 출력
+                                For i = 0 To 4
+                                    Dim jobGradeName
+                                    If i < approverCount And IsObject(approvers(i)) Then
+                                        jobGradeName = approvers(i).Item("job_grade")
+                                        If jobGradeName = "" Then jobGradeName = "직급 정보 없음"
+                                    Else
+                                        jobGradeName = ""
+                                    End If
+                                %>
+                                    <td class="approval-cell">
+                                        <%= jobGradeName %>
+                                    </td>
+                                <%
+                                Next
+
+                                %>
+                            </tr>
+                            <!-- 두 번째 행: 이름과 순서 (5개 고정) -->
+                            <tr class="name-row">
+                                <% 
+                                For i = 0 To 4
+                                    If i < approverCount And IsObject(approvers(i)) Then
+                                        approverName = approvers(i).Item("name")
+                                        approvalStatus = approvers(i).Item("status")
+                                        approvedDate = approvers(i).Item("approved_at")
+                                        comments = approvers(i).Item("comments")
+                                
+                                        Select Case approvalStatus
+                                            Case "승인"
+                                                stepStatusClass = "badge-success"
+                                            Case "반려"
+                                                stepStatusClass = "badge-danger"
+                                            Case "대기"
+                                                stepStatusClass = "badge-secondary"
+                                            Case Else
+                                                stepStatusClass = "badge-secondary"
+                                        End Select
+                                %>
+                                    <td class="approval-cell name-cell">
+                                        <span class="step-number"><%= approvers(i).Item("step") %></span>
+                                        <div class="approver-name"><%= approverName %></div>
+                                        <div class="approval-status-info">
+                                            <span class="badge <%= stepStatusClass %>"><%= approvalStatus %></span>
+                                            <% If approvedDate <> "" Then %>
+                                                <div class="approval-date"><%= FormatDateTime(approvedDate, 2) %></div>
+                                            <% End If %>
+                                            <% If comments <> "" Then %>
+                                                <div class="approval-comment">
+                                                    <i class="fas fa-comment me-1"></i><%= comments %>
+                                                </div>
+                                            <% End If %>
+                                        </div>
+                                    </td>
+                                <%
+                                    Else
+                                %>
+                                    <td class="approval-cell name-cell">
+                                        <!-- 빈 셀 -->
+                                    </td>
+                                <%
+                                    End If
+                                Next
+                                %>
+                            </tr>
+                        </tbody>
                     </table>
-                    <div class="text-center mt-4">
+                    
+            
+        
+
+                    <% If isCardUsage Then %>
+                                                <!-- 카드 사용 내역 기본정보 -->
+                        <form method="post" action="card_usage_update.asp" id="updateForm" >
+                            <input type="hidden" name="usage_id" value="<%= docId %>">
+                            <table class="approval-line-table" >
+                                <tbody >
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 20%; border-top: none;">제목</td>
+                                        <td class="approval-cell" style="width: 80%; border-top: none;" colspan="3" >
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <input type="text" name="title" class="form-control" style="width: 96%; border-radius: 0;" value="<%= CardSafeField(usageRS, "title") %>" required>
+                                            <% Else %>
+                                                <%= CardSafeField(usageRS, "title") %>
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 20%;">신청자</td>
+                                        <td class="approval-cell" style="width: 80%;" colspan="3">
+                                            <% 
+                                            ' 필드 존재 여부 확인 함수
+                                            Function CardFieldExists(rs, fieldName)
+                                                Dim f
+                                                CardFieldExists = False
+                                                For Each f in rs.Fields
+                                                    If LCase(f.Name) = LCase(fieldName) Then
+                                                        CardFieldExists = True
+                                                        Exit Function
+                                                    End If
+                                                Next
+                                            End Function
+                                            
+                                            ' 안전한 필드 접근 함수
+                                            Function CardSafeField(rs, fieldName)
+                                                If CardFieldExists(rs, fieldName) And Not IsNull(rs(fieldName)) Then
+                                                    CardSafeField = rs(fieldName)
+                                                Else
+                                                    CardSafeField = ""
+                                                End If
+                                            End Function
+                                            
+                                            Dim userName, deptName, jobName
+                                            userName = CardSafeField(usageRS, "user_name")
+                                            deptName = CardSafeField(usageRS, "department_name")
+                                            jobName = CardSafeField(usageRS, "job_grade_name")
+                                            
+                                            Response.Write userName
+                                            
+                                            If deptName <> "" Or jobName <> "" Then
+                                                Response.Write " ("
+                                                
+                                                If deptName <> "" Then
+                                                    Response.Write deptName
+                                                    If jobName <> "" Then
+                                                        Response.Write " / "
+                                                    End If
+                                                End If
+                                                
+                                                If jobName <> "" Then
+                                                    Response.Write jobName
+                                                End If
+                                                
+                                                Response.Write ")"
+                                            End If
+                                            %>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">상태</td>
+                                        <td class="approval-cell" colspan="3">
+                                            <% 
+                                            Dim cardStatusClass, cardStatus
+                                            cardStatus = CardSafeField(usageRS, "approval_status")
+                                            
+                                            Select Case cardStatus
+                                                Case "승인"
+                                                    cardStatusClass = "bg-success"
+                                                Case "반려"
+                                                    cardStatusClass = "bg-danger"
+                                                Case "대기"
+                                                    cardStatusClass = "bg-secondary"
+                                                Case "완료"
+                                                    cardStatusClass = "bg-primary"
+                                                Case Else
+                                                    cardStatusClass = "bg-secondary"
+                                            End Select
+                                            %>
+                                            <span class="badge <%= cardStatusClass %>">
+                                                <%= cardStatus %>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">카드</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <select class="form-select" name="card_id" required>
+                                                    <option value="">선택해주세요</option>
+                                                    <% 
+                                                    Dim cardSQL, cardRS
+                                                    cardSQL = "SELECT card_id, account_name, issuer FROM " & dbSchema & ".CardAccount ORDER BY account_name"
+                                                    Set cardRS = db.Execute(cardSQL)
+                                                    
+                                                    Dim selectedCardId
+                                                    selectedCardId = CardSafeField(usageRS, "card_id")
+                                                    
+                                                    Do While Not cardRS.EOF
+                                                    %>
+                                                    <option value="<%= cardRS("card_id") %>" <%= IIf(CStr(cardRS("card_id")) = CStr(selectedCardId), "selected", "") %>>
+                                                        <%= cardRS("account_name") %> (<%= cardRS("issuer") %>)
+                                                    </option>
+                                                    <%
+                                                        cardRS.MoveNext
+                                                    Loop
+                                                    %>
+                                                </select>
+                                            <% Else %>
+                                                <%= CardSafeField(usageRS, "account_name") %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">사용일자</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <% 
+                                                Dim usageDate
+                                                usageDate = CardSafeField(usageRS, "usage_date")
+                                                Dim usageDateValue
+                                                
+                                                If usageDate <> "" Then
+                                                    usageDateValue = FormatDateTime(usageDate, 2)
+                                                Else
+                                                    usageDateValue = ""
+                                                End If
+                                                %>
+                                                <input type="date" name="usage_date" class="form-control" style="width: 96%; border-radius: 0;" value="<%= usageDateValue %>" required>
+                                            <% Else %>
+                                                <%= FormatDateTime(CardSafeField(usageRS, "usage_date"), 2) %>
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">사용처</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <input type="text" name="store_name" class="form-control"  style="width: 98%; border-radius: 0;" value="<%= CardSafeField(usageRS, "store_name") %>" required>
+                                            <% Else %>
+                                                <%= CardSafeField(usageRS, "store_name") %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">금액</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <div class="input-group">
+                                                    <% 
+                                                    Dim amount
+                                                    amount = CardSafeField(usageRS, "amount")
+                                                    Dim amountValue
+                                                    
+                                                    If amount <> "" Then
+                                                        amountValue = FormatNumber(amount)
+                                                    Else
+                                                        amountValue = ""
+                                                    End If
+                                                    %>
+                                                    <input type="text" name="amount" class="form-control text-end"  style=" width: 90%; border-radius: 0;" value="<%= amountValue %>" required>
+                                                    <span class="input-group-text">원</span>
+                                                </div>
+                                            <% Else %>
+                                                <%= FormatNumber(CardSafeField(usageRS, "amount")) %>원
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">사용 목적</td>
+                                        <td class="approval-cell" colspan="3">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <textarea name="purpose" class="form-control" rows="5"  style="width: 98%; border-radius: 0;" required><%= CardSafeField(usageRS, "purpose") %></textarea>
+                                            <% Else %>
+                                                <%= CardSafeField(usageRS, "purpose") %>
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                    <% Else %>
+                        <!-- 차량 이용 신청 기본정보 -->
+                        <form method="post" action="vehicle_request_update.asp" id="updateForm">
+                            <input type="hidden" name="request_id" value="<%= docId %>">
+                            <table class="approval-line-table">
+                                <tbody>
+                                    <% 
+                                        ' 필드 존재 여부 확인 함수
+                                        Function VehicleFieldExists(rs, fieldName)
+                                            Dim f
+                                            VehicleFieldExists = False
+                                            For Each f in rs.Fields
+                                                If LCase(f.Name) = LCase(fieldName) Then
+                                                    VehicleFieldExists = True
+                                                    Exit Function
+                                                End If
+                                            Next
+                                        End Function
+                                        
+                                        ' 안전한 필드 접근 함수
+                                        Function VehicleSafeField(rs, fieldName)
+                                            If VehicleFieldExists(rs, fieldName) And Not IsNull(rs(fieldName)) Then
+                                                VehicleSafeField = rs(fieldName)
+                                            Else
+                                                VehicleSafeField = ""
+                                            End If
+                                        End Function
+                                    
+                                        ' 운행 거리와 단가로 유류비 계산
+                                        Dim distance, fuelRate, tollFee, parkingFee, total_cost
+                                        
+                                        ' 안전하게 필드값 가져오기
+                                        distance = 0
+                                        If VehicleFieldExists(usageRS, "distance") And Not IsNull(usageRS("distance")) Then
+                                            distance = CDbl(usageRS("distance"))
+                                        End If
+                                        
+                                        fuelRate = 2000 ' 기본값
+                                        If VehicleFieldExists(usageRS, "fuel_rate") And Not IsNull(usageRS("fuel_rate")) Then
+                                            fuelRate = CDbl(usageRS("fuel_rate"))
+                                        End If
+                                        
+                                        tollFee = 0
+                                        If VehicleFieldExists(usageRS, "toll_fee") And Not IsNull(usageRS("toll_fee")) Then
+                                            tollFee = CDbl(usageRS("toll_fee"))
+                                        End If
+                                        
+                                        parkingFee = 0
+                                        If VehicleFieldExists(usageRS, "parking_fee") And Not IsNull(usageRS("parking_fee")) Then
+                                            parkingFee = CDbl(usageRS("parking_fee"))
+                                        End If
+                                        
+                                        total_cost = (distance * fuelRate) + tollFee + parkingFee
+                                    %>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 20%; border-top: none;">제목</td>
+                                        <td class="approval-cell" style="width: 80%; border-top: none;" colspan="3">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <input type="text" name="title" class="form-control"  style="width: 96%; border-radius: 0;" value="<%= VehicleSafeField(usageRS, "title") %>" required>
+                                            <% Else %>
+                                                <%= VehicleSafeField(usageRS, "title") %>
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 20%;">신청자</td>
+                                        <td class="approval-cell" style="width: 80%;" colspan="3">
+                                            <%= VehicleSafeField(usageRS, "user_name") %>
+                                            (<%= VehicleSafeField(usageRS, "department_name") %> / <%= VehicleSafeField(usageRS, "job_grade_name") %>)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">상태</td>
+                                        <td class="approval-cell" colspan="3">
+                                            <% 
+                                            Dim statusClass3, approvalStatus
+                                            approvalStatus = VehicleSafeField(usageRS, "approval_status")
+                                            
+                                            Select Case approvalStatus
+                                                Case "승인"
+                                                    statusClass3 = "bg-success"
+                                                Case "반려"
+                                                    statusClass3 = "bg-danger"
+                                                Case "대기"
+                                                    statusClass3 = "bg-secondary"
+                                                Case "완료"
+                                                    statusClass3 = "bg-primary"
+                                                Case Else
+                                                    statusClass3 = "bg-secondary"
+                                            End Select
+                                            %>
+                                            <span class="badge <%= statusClass3 %>">
+                                                <%= approvalStatus %>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">시작일자</td>
+                                        <td class="approval-cell" style="width: 20%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <% 
+                                                Dim startDate
+                                                startDate = VehicleSafeField(usageRS, "start_date")
+                                                Dim startDateValue
+                                                If startDate <> "" Then
+                                                    startDateValue = FormatDateTime(startDate, 2)
+                                                Else
+                                                    startDateValue = ""
+                                                End If
+                                                %>
+                                                <input type="date" name="start_date" class="form-control"  style="width: 96%; border-radius: 0;" value="<%= startDateValue %>" required>
+                                            <% Else %>
+                                                <% 
+                                                startDate = VehicleSafeField(usageRS, "start_date")
+                                                If startDate <> "" Then
+                                                    Response.Write FormatDateTime(startDate, 2)
+                                                End If
+                                                %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">종료일자</td>
+                                        <td class="approval-cell" style="width: 20%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <% 
+                                                Dim endDate
+                                                endDate = VehicleSafeField(usageRS, "end_date")
+                                                Dim endDateValue
+                                                If endDate <> "" Then
+                                                    endDateValue = FormatDateTime(endDate, 2)
+                                                Else
+                                                    endDateValue = ""
+                                                End If
+                                                %>
+                                                <input type="date" name="end_date" class="form-control"  style="width: 96%; border-radius: 0;" value="<%= endDateValue %>" required>
+                                            <% Else %>
+                                                <% 
+                                                endDate = VehicleSafeField(usageRS, "end_date")
+                                                If endDate <> "" Then
+                                                    Response.Write FormatDateTime(endDate, 2)
+                                                End If
+                                                %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="width: 20%;"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">출발지</td>
+                                        <td class="approval-cell">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <input type="text" name="start_location" class="form-control"  style="width: 96%; border-radius: 0;" value="<%= VehicleSafeField(usageRS, "start_location") %>" required>
+                                            <% Else %>
+                                                <%= VehicleSafeField(usageRS, "start_location") %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">목적지</td>
+                                        <td class="approval-cell">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <input type="text" name="destination" class="form-control"  style="width: 96%; border-radius: 0;" value="<%= VehicleSafeField(usageRS, "destination") %>" required>
+                                            <% Else %>
+                                                <%= VehicleSafeField(usageRS, "destination") %>
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">운행거리</td>
+                                        <td class="approval-cell">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <div class="input-group">
+                                                    <input type="text" name="distance" class="form-control text-end"  style="width: 80%; border-radius: 0;" value="<%= distance %>" required>
+                                                    <span class="input-group-text">km</span>
+                                                </div>
+                                            <% Else %>
+                                                <%= FormatNumber(distance) %> km
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">유류비 단가</td>
+                                        <td class="approval-cell">
+                                            <%= FormatNumber(fuelRate) %> 원
+                                        </td>
+                                        <td class="approval-cell"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">통행료</td>
+                                        <td class="approval-cell">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <div class="input-group">
+                                                    <input type="text" name="toll_fee" class="form-control text-end"  style="width: 80%; border-radius: 0;" value="<%= FormatNumber(tollFee) %>">
+                                                    <span class="input-group-text">원</span>
+                                                </div>
+                                            <% Else %>
+                                                <%= FormatNumber(tollFee) %> 원
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">주차비</td>
+                                        <td class="approval-cell">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <div class="input-group">
+                                                    <input type="text" name="parking_fee" class="form-control text-end" style="width: 80%; border-radius: 0;"  value="<%= FormatNumber(parkingFee) %>">
+                                                    <span class="input-group-text">원</span>
+                                                </div>
+                                            <% Else %>
+                                                <%= FormatNumber(parkingFee) %> 원
+                                            <% End If %>
+                                        </td>
+                                        <td class="approval-cell"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">총 예상 비용</td>
+                                        <td class="approval-cell" colspan="3">
+                                            <%= FormatNumber(total_cost) %> 원
+                                            <small style="color: #64748B;">(유류비: <%= FormatNumber(distance * fuelRate) %>원, 통행료: <%= FormatNumber(tollFee) %>원, 주차비: <%= FormatNumber(parkingFee) %>원)</small>
+                                            <input type="hidden" name="total_cost" value="<%= total_cost %>">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">업무 목적</td>
+                                        <td class="approval-cell" colspan="3">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                <textarea name="purpose" class="form-control" rows="5"  style="width: 96%; border-radius: 0;" required><%= VehicleSafeField(usageRS, "purpose") %></textarea>
+                                            <% Else %>
+                                                <%= VehicleSafeField(usageRS, "purpose") %>
+                                            <% End If %>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                    <% End If %>
+                
+                
+                <!-- 수정 버튼 -->
+                <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                    <div class="text-center mt-4 pt-3" style="border-top: 1px solid #E9ECEF;">
                         <button type="submit" class="btn btn-primary me-2">
-                            <i class="fas fa-save me-1"></i> 수정사항 저장
+                            <i class="fas fa-save me-1"></i> 수정
                         </button>
                         <a href="dashboard.asp" class="btn btn-secondary ms-2">
                             <i class="fas fa-times me-1"></i> 취소
                         </a>
                     </div>
                 </form>
-            <% Else %>
-                <table class="table table-bordered">
-                    <tr>
-                        <th style="width: 15%;">신청자</th>
-                        <td style="width: 35%;">
-                            <%= usageRS("user_name") %>
-                            (<%= usageRS("department_name") %> / <%= usageRS("job_grade_name") %>)
-                        </td>
-                        <th style="width: 15%;">상태</th>
-                        <td style="width: 35%;">
-                            <% 
-                            Select Case usageRS("approval_status")
-                                Case "승인"
-                                    statusClass = "bg-success"
-                                Case "반려"
-                                    statusClass = "bg-danger"
-                                Case "대기"
-                                    statusClass = "bg-secondary"
-                                Case "완료"
-                                    statusClass = "bg-primary"
-                            End Select
-                            %>
-                            <span class="badge <%= statusClass %>">
-                                <%= usageRS("approval_status") %>
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>카드</th>
-                        <td><%= usageRS("account_name") %></td>
-                        <th>사용일자</th>
-                        <td><%= FormatDateTime(usageRS("usage_date"), 2) %></td>
-                    </tr>
-                    <tr>
-                        <th>사용처</th>
-                        <td><%= usageRS("store_name") %></td>
-                        <th>금액</th>
-                        <td><%= FormatNumber(usageRS("amount")) %>원</td>
-                    </tr>
-                    <tr>
-                        <th>사용 목적</th>
-                        <td colspan="3"><%= usageRS("purpose") %></td>
-                    </tr>
-                </table>
-            <% End If %>
-        </div>
-    </div>
-
-    <!-- 결재선 정보 -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="card-title mb-0">결재선</h5>
-        </div>
-        <div class="card-body">
-            <div class="approval-line">
-                <div class="approval-steps">
-                    <% 
-                    If Not approvalRS.EOF Then
-                        approvalRS.MoveFirst
-                        Do While Not approvalRS.EOF 
-                    %>
-                        <div class="approval-step">
-                            <div class="step-label"><%= approvalRS("approval_step") %>차 결재</div>
-                            <div class="approver-info">
-                                <div class="approver-name"><%= approvalRS("approver_name") %></div>
-                                <div class="approver-dept"><%= approvalRS("department_name") %> / <%= approvalRS("job_grade_name") %></div>
-                                <div class="approval-status">
-                                    <% 
-                                    Select Case approvalRS("status")
-                                        Case "승인"
-                                            statusClass = "bg-success"
-                                        Case "반려"
-                                            statusClass = "bg-danger"
-                                        Case "대기"
-                                            statusClass = "bg-secondary"
-                                    End Select
-                                    %>
-                                    <span class="badge <%= statusClass %>"><%= approvalRS("status") %></span>
-                                    <% If Not IsNull(approvalRS("approved_at")) Then %>
-                                        <span class="approval-date"><%= FormatDateTime(approvalRS("approved_at"), 2) %></span>
-                                    <% End If %>
-                                </div>
-                                <% If approvalRS("comments") <> "" Then %>
-                                    <div class="approval-comment">
-                                        <i class="fas fa-comment"></i><%= approvalRS("comments") %>
-                                    </div>
-                                <% End If %>
-                            </div>
-                        </div>
-                    <%
-                            approvalRS.MoveNext
-                        Loop
-                        approvalRS.MoveFirst
-                    End If
-                    %>
-                </div>
-
-                <% If canApprove And myApprovalStatus = "대기" Then %>
-                    <div class="comments-section">
-                        <form method="post">
-                            <div class="form-group">
-                                <label for="comments" class="form-label">결재 의견</label>
-                                <textarea class="form-control" id="comments" name="comments" rows="3" 
-                                        placeholder="결재 의견을 입력해주세요..."></textarea>
-                            </div>
-                            
-                            <div class="text-center mt-4">
-                                <button type="submit" name="action" value="승인" class="btn btn-success">
-                                    <i class="fas fa-check me-2"></i> 승인
-                                </button>
-                                <button type="submit" name="action" value="반려" class="btn btn-danger">
-                                    <i class="fas fa-times me-2"></i> 반려
-                                </button>
-                                <a href="dashboard.asp" class="btn btn-secondary">
-                                    <i class="fas fa-arrow-left me-2"></i> 취소
-                                </a>
-                            </div>
-                        </form>
-                    </div>
                 <% End If %>
             </div>
         </div>
+    </div>
+
+
+
     </div>
 </div>
 
@@ -782,15 +1354,35 @@ function formatAmount(input) {
 }
 
 // 폼 제출 시 금액 콤마 제거
-document.querySelector('form')?.addEventListener('submit', function(e) {
+document.querySelector('#updateForm')?.addEventListener('submit', function(e) {
+    // 카드 사용 내역의 금액 필드
     const amountInput = document.querySelector('input[name="amount"]');
     if (amountInput) {
         amountInput.value = amountInput.value.replace(/,/g, '');
+    }
+    
+    // 차량 이용 신청의 금액 필드들
+    const tollFeeInput = document.querySelector('input[name="toll_fee"]');
+    if (tollFeeInput) {
+        tollFeeInput.value = tollFeeInput.value.replace(/,/g, '');
+    }
+    
+    const parkingFeeInput = document.querySelector('input[name="parking_fee"]');
+    if (parkingFeeInput) {
+        parkingFeeInput.value = parkingFeeInput.value.replace(/,/g, '');
     }
 });
 
 // 금액 입력 필드 이벤트 리스너
 document.querySelector('input[name="amount"]')?.addEventListener('input', function(e) {
+    formatAmount(this);
+});
+
+document.querySelector('input[name="toll_fee"]')?.addEventListener('input', function(e) {
+    formatAmount(this);
+});
+
+document.querySelector('input[name="parking_fee"]')?.addEventListener('input', function(e) {
     formatAmount(this);
 });
 </script>

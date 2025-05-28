@@ -39,6 +39,10 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 Session("name") = "관리자"
                 Session("department_id") = 1
                 Session("is_admin") = "Y"
+                
+                ' 관리자인 경우 관리자 대시보드로 이동
+                Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
+                Response.End
             Else
                 Session("name") = "사용자"
                 Session("department_id") = 2
@@ -65,7 +69,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             ' 준비된 명령 객체 생성
             Dim cmd
             Set cmd = Server.CreateObject("ADODB.Command")
-            cmd.ActiveConnection = db
+            cmd.ActiveConnection = db99
             cmd.CommandText = loginSQL
             
             ' 파라미터 추가
@@ -89,18 +93,25 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                     
                     ' 관리자 체크
                     If userId = "admin" Then
-                    Session("is_admin") = "Y"
+                        Session("is_admin") = "Y"
+                        
+                        ' 로그 기록
+                        LogActivity userId, "로그인", "관리자 로그인"
+                        
+                        ' 관리자인 경우 관리자 대시보드로 이동
+                        Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
+                        Response.End
+                    Else
+                        Session("is_admin") = "N"
+                        
+                        ' 로그 기록
+                        LogActivity userId, "로그인", "사용자 로그인"
+                        
+                        ' 일반 사용자는 일반 대시보드로 이동
+                        Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
+                        Response.End
+                    End If
                 Else
-                    Session("is_admin") = "N"
-                End If
-                
-                    ' 로그 기록
-                    LogActivity userId, "로그인", "사용자 로그인"
-                
-                ' 페이지 이동
-                    Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
-                    Response.End
-            Else
                     errorMsg = "아이디 또는 비밀번호가 일치하지 않습니다."
                 End If
                 
@@ -127,10 +138,16 @@ Sub ForceLogin(id)
         Session("name") = "관리자"
         Session("department_id") = 1
         Session("is_admin") = "Y"
+        
+        ' 관리자 대시보드로 이동
+        Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
     Else
         Session("name") = "사용자"
         Session("department_id") = 2
         Session("is_admin") = "N"
+        
+        ' 일반 대시보드로 이동
+        Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
     End If
     
     ' 로그 기록
@@ -334,7 +351,7 @@ End Sub
                         <%
                         If Session("is_admin") = "Y" Then
                         %>
-                            <li><a href="/contents/card_car_used/admin/index.asp">관리자</a></li>
+                            <li><a href="/contents/card_car_used/pages/admin/admin_dashboard.asp">관리자</a></li>
                         <%
                         End If
                         %>
