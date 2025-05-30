@@ -1139,7 +1139,7 @@ End If
                                                     End If
                                                     %>
                                                     <input type="text" name="amount" class="form-control text-end"  style=" width: 90%; border-radius: 0;" value="<%= amountValue %>" required>
-                                                    <span class="input-group-text">원</span>
+                                                    <span >원</span>
                                                 </div>
                                             <% Else %>
                                                 <%= FormatNumber(CardSafeField(usageRS, "amount")) %>원
