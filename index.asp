@@ -14,7 +14,7 @@ File="C:\Program Files\Common Files\System\ado\msado15.dll" -->
 
 ' 이미 로그인한 경우 메인 페이지로 리디렉션
 If IsAuthenticated() Then
-    RedirectTo("/contents/card_car_used/pages/dashboard.asp")
+    RedirectTo("/pages/dashboard.asp")
 End If
 
 Dim errorMsg : errorMsg = ""
@@ -41,7 +41,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                 Session("is_admin") = "Y"
                 
                 ' 관리자인 경우 관리자 대시보드로 이동
-                Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
+                Response.Redirect("/pages/admin/admin_dashboard.asp")
                 Response.End
             Else
                 Session("name") = "사용자"
@@ -53,7 +53,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
             LogActivity userId, "로그인", "하드코딩된 계정으로 로그인"
             
             ' 페이지 이동
-            Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
+            Response.Redirect("/pages/dashboard.asp")
             Response.End
         End If
         
@@ -99,7 +99,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                         LogActivity userId, "로그인", "관리자 로그인"
                         
                         ' 관리자인 경우 관리자 대시보드로 이동
-                        Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
+                        Response.Redirect("/pages/admin/admin_dashboard.asp")
                         Response.End
                     Else
                         Session("is_admin") = "N"
@@ -108,7 +108,7 @@ If Request.ServerVariables("REQUEST_METHOD") = "POST" Then
                         LogActivity userId, "로그인", "사용자 로그인"
                         
                         ' 일반 사용자는 일반 대시보드로 이동
-                        Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
+                        Response.Redirect("/pages/dashboard.asp")
                         Response.End
                     End If
                 Else
@@ -140,14 +140,14 @@ Sub ForceLogin(id)
         Session("is_admin") = "Y"
         
         ' 관리자 대시보드로 이동
-        Response.Redirect("/contents/card_car_used/pages/admin/admin_dashboard.asp")
+        Response.Redirect("/pages/admin/admin_dashboard.asp")
     Else
         Session("name") = "사용자"
         Session("department_id") = 2
         Session("is_admin") = "N"
         
         ' 일반 대시보드로 이동
-        Response.Redirect("/contents/card_car_used/pages/dashboard.asp")
+        Response.Redirect("/pages/dashboard.asp")
     End If
     
     ' 로그 기록
@@ -339,28 +339,28 @@ End Sub
     <header>
         <div class="container">
             <div class="logo">
-                <a href="/contents/card_car_used/index.asp">카드지출/차량이용관리</a>
+                <a href="/index.asp">카드지출/차량이용관리</a>
             </div>
             <nav>
                 <ul>
                     <%
                     If Session("user_id") <> "" Then
                     %>
-                        <li><a href="/contents/card_car_used/pages/card_usage.asp">카드사용 내역</a></li>
-                        <li><a href="/contents/card_car_used/pages/vehicle_request.asp">개인차량이용 신청</a></li>
+                        <li><a href="/pages/card_usage.asp">카드사용 내역</a></li>
+                        <li><a href="/pages/vehicle_request.asp">개인차량이용 신청</a></li>
                         <%
                         If Session("is_admin") = "Y" Then
                         %>
-                            <li><a href="/contents/card_car_used/pages/admin/admin_dashboard.asp">관리자</a></li>
+                            <li><a href="/pages/admin/admin_dashboard.asp">관리자</a></li>
                         <%
                         End If
                         %>
-                        <li><a href="/contents/card_car_used/pages/logout.asp">로그아웃</a></li>
+                        <li><a href="/pages/logout.asp">로그아웃</a></li>
                     <%
                     Else
                     %>
-                        <li><a href="/contents/card_car_used/index.asp">로그인</a></li>
-                        <li><a href="/contents/card_car_used/pages/register.asp">회원가입</a></li>
+                        <li><a href="/index.asp">로그인</a></li>
+                        <li><a href="/pages/register.asp">회원가입</a></li>
                     <%
                     End If
                     %>
@@ -396,14 +396,14 @@ End Sub
                 </div>
                 </form>
                 <div class="shadcn-card-footer" style="text-align: center;">
-                    <p>계정이 없으신가요? <a href="/contents/card_car_used/pages/register.asp">회원가입</a></p>
+                    <p>계정이 없으신가요? <a href="/pages/register.asp">회원가입</a></p>
                 </div>
                 </div>
         </div>
     </main>
     <footer>
         <div class="container">
-            <p>&copy; 2023 카드 지출 결의/개인차량 이용 관리 시스템</p>
+            <p>&copy; <%= Year(Now) %> 카드 지출 결의/개인차량 이용 관리 시스템</p>
     </div>
     </footer>
 </body>

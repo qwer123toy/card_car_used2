@@ -18,128 +18,6 @@ If Not IsAdmin() Then
     Response.End
 End If
 
-' 엑셀 다운로드 처리
-If Request.QueryString("action") = "excel" Then
-    ' 검색 조건 가져오기
-    Dim excelSearchKeyword, excelSearchField, excelSearchDateFrom, excelSearchDateTo, excelWhereClause
-    excelSearchKeyword = Trim(Request.QueryString("keyword"))
-    excelSearchField = Request.QueryString("field")
-    excelSearchDateFrom = Request.QueryString("date_from")
-    excelSearchDateTo = Request.QueryString("date_to")
-
-    excelWhereClause = ""
-    Dim excelWhereConditions : excelWhereConditions = Array()
-    Dim excelConditionIndex : excelConditionIndex = 0
-
-    ' 키워드 검색 조건
-    If excelSearchKeyword <> "" Then
-        If excelSearchField = "user_id" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "u.name LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        ElseIf excelSearchField = "destination" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "vr.destination LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        ElseIf excelSearchField = "purpose" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "vr.purpose LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        End If
-    End If
-
-    ' 날짜 범위 검색 조건
-    If IsDate(excelSearchDateFrom) Then
-        ReDim Preserve excelWhereConditions(excelConditionIndex)
-        excelWhereConditions(excelConditionIndex) = "vr.start_date >= '" & CDate(excelSearchDateFrom) & "'"
-        excelConditionIndex = excelConditionIndex + 1
-    End If
-
-    If IsDate(excelSearchDateTo) Then
-        ReDim Preserve excelWhereConditions(excelConditionIndex)
-        excelWhereConditions(excelConditionIndex) = "vr.start_date <= '" & CDate(excelSearchDateTo) & " 23:59:59'"
-        excelConditionIndex = excelConditionIndex + 1
-    End If
-
-    ' WHERE 절 구성
-    If excelConditionIndex > 0 Then
-        excelWhereClause = " WHERE " & Join(excelWhereConditions, " AND ")
-    End If
-
-    ' 전체 데이터 조회 (페이징 없이)
-    Dim excelSQL, excelRS
-    excelSQL = "SELECT vr.request_id, vr.request_date, vr.user_id, vr.title, vr.start_date, vr.end_date, " & _
-               "vr.start_location, vr.destination, vr.distance, vr.toll_fee, vr.parking_fee, " & _
-               "vr.purpose, vr.approval_status, vr.created_at, " & _
-               "u.name AS user_name, d.name AS department_name " & _
-               "FROM " & dbSchema & ".VehicleRequests vr " & _
-               "LEFT JOIN " & dbSchema & ".Users u ON vr.user_id = u.user_id " & _
-               "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
-               IIf(excelWhereClause <> "", " " & excelWhereClause, "") & " " & _
-               "ORDER BY vr.start_date DESC"
-
-    Set excelRS = db99.Execute(excelSQL)
-
-    ' 엑셀 파일 헤더 설정
-    Response.ContentType = "application/vnd.ms-excel"
-    Response.AddHeader "Content-Disposition", "attachment; filename=vehicle_requests_" & Replace(Replace(Replace(Now(), "/", ""), ":", ""), " ", "_") & ".xls"
-    Response.CharSet = "utf-8"
-%>
-<html>
-<head>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-</head>
-<body>
-<table border="1">
-    <tr>
-        <th>신청자</th>
-        <th>부서</th>
-        <th>제목</th>
-        <th>시작일</th>
-        <th>종료일</th>
-        <th>출발지</th>
-        <th>목적지</th>
-        <th>운행거리(km)</th>
-        <th>통행료</th>
-        <th>주차비</th>
-        <th>업무목적</th>
-        <th>승인상태</th>
-        <th>신청일</th>
-    </tr>
-    <% Do While Not excelRS.EOF %>
-    <tr>
-        <td><%= excelRS("user_name") %></td>
-        <td><%= IIf(IsNull(excelRS("department_name")), "-", excelRS("department_name")) %></td>
-        <td><%= excelRS("title") %></td>
-        <td><%= FormatDateTime(excelRS("start_date"), 2) %></td>
-        <td><%= FormatDateTime(excelRS("end_date"), 2) %></td>
-        <td><%= excelRS("start_location") %></td>
-        <td><%= excelRS("destination") %></td>
-        <td><%= FormatNumber(excelRS("distance")) %></td>
-        <td><%= FormatNumber(excelRS("toll_fee")) %></td>
-        <td><%= FormatNumber(excelRS("parking_fee")) %></td>
-        <td><%= excelRS("purpose") %></td>
-        <td><%= excelRS("approval_status") %></td>
-        <td><%= FormatDateTime(excelRS("created_at"), 2) %></td>
-    </tr>
-    <% 
-    excelRS.MoveNext
-    Loop
-    %>
-</table>
-</body>
-</html>
-<%
-    ' 사용한 객체 해제
-    If Not excelRS Is Nothing Then
-        If excelRS.State = 1 Then
-            excelRS.Close
-        End If
-        Set excelRS = Nothing
-    End If
-    Response.End
-End If
-
 ' 차량 이용 신청 삭제 처리
 If Request.QueryString("action") = "delete" And Request.QueryString("id") <> "" Then
     Dim deleteId
@@ -404,17 +282,6 @@ End Function
     box-shadow: 0 4px 12px rgba(231,76,60,0.2);
 }
 
-.btn-success {
-    background: linear-gradient(to right, #28a745, #20c997);
-    border: none;
-    color: white;
-}
-
-.btn-success:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(40,167,69,0.2);
-}
-
 .btn-sm {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
@@ -586,14 +453,9 @@ End Function
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary flex-fill">
-                            <i class="fas fa-search me-1"></i>검색
-                        </button>
-                        <button type="button" class="btn btn-success" onclick="exportToExcel()">
-                            <i class="fas fa-file-excel me-1"></i>엑셀
-                        </button>
-                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>검색
+                    </button>
                 </div>
             </div>
         </form>
@@ -705,19 +567,6 @@ function confirmDelete(id) {
     if (confirm('정말로 이 차량 이용 신청을 삭제하시겠습니까?')) {
         window.location.href = "admin_vehicle_requests.asp?action=delete&id=" + id;
     }
-}
-
-function exportToExcel() {
-    // 현재 검색 조건을 가져와서 엑셀 다운로드 URL 생성
-    const urlParams = new URLSearchParams(window.location.search);
-    const field = urlParams.get('field') || '';
-    const keyword = urlParams.get('keyword') || '';
-    const dateFrom = urlParams.get('date_from') || '';
-    const dateTo = urlParams.get('date_to') || '';
-    
-    const excelUrl = `admin_vehicle_requests.asp?action=excel&field=${encodeURIComponent(field)}&keyword=${encodeURIComponent(keyword)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
-    
-    window.location.href = excelUrl;
 }
 </script>
 <%

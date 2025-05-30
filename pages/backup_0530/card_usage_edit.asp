@@ -220,8 +220,7 @@ On Error GoTo 0
         <% End If %>
         
         <div class="shadcn-card-content">
-            <form id="cardUsageForm" method="post" action="card_usage_edit.asp?id=<%= usageId %>" onsubmit="if (!confirm('수정된 내용을 저장하시겠습니까?')) return false; prepareFormSubmission(); return validateForm('cardUsageForm', cardUsageRules);">
-          
+            <form id="cardUsageForm" method="post" action="card_usage_edit.asp?id=<%= usageId %>" onsubmit="prepareFormSubmission(); return validateForm('cardUsageForm', cardUsageRules)">
                 <div class="form-group">
                     <label class="shadcn-input-label" for="card_id">카드 선택</label>
                     <select class="shadcn-select" id="card_id" name="card_id">

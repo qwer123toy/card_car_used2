@@ -18,146 +18,24 @@ If Not IsAdmin() Then
     Response.End
 End If
 
-' 엑셀 다운로드 처리
-If Request.QueryString("action") = "excel" Then
-    ' 검색 조건 가져오기
-    Dim excelSearchKeyword, excelSearchField, excelSearchDateFrom, excelSearchDateTo, excelWhereClause
-    excelSearchKeyword = Trim(Request.QueryString("keyword"))
-    excelSearchField = Request.QueryString("field")
-    excelSearchDateFrom = Request.QueryString("date_from")
-    excelSearchDateTo = Request.QueryString("date_to")
-
-    excelWhereClause = ""
-    Dim excelWhereConditions : excelWhereConditions = Array()
-    Dim excelConditionIndex : excelConditionIndex = 0
-
-    ' 키워드 검색 조건
-    If excelSearchKeyword <> "" Then
-        If excelSearchField = "user_id" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "u.name LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        ElseIf excelSearchField = "destination" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "vr.destination LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        ElseIf excelSearchField = "purpose" Then
-            ReDim Preserve excelWhereConditions(excelConditionIndex)
-            excelWhereConditions(excelConditionIndex) = "vr.purpose LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
-            excelConditionIndex = excelConditionIndex + 1
-        End If
-    End If
-
-    ' 날짜 범위 검색 조건
-    If IsDate(excelSearchDateFrom) Then
-        ReDim Preserve excelWhereConditions(excelConditionIndex)
-        excelWhereConditions(excelConditionIndex) = "vr.start_date >= '" & CDate(excelSearchDateFrom) & "'"
-        excelConditionIndex = excelConditionIndex + 1
-    End If
-
-    If IsDate(excelSearchDateTo) Then
-        ReDim Preserve excelWhereConditions(excelConditionIndex)
-        excelWhereConditions(excelConditionIndex) = "vr.start_date <= '" & CDate(excelSearchDateTo) & " 23:59:59'"
-        excelConditionIndex = excelConditionIndex + 1
-    End If
-
-    ' WHERE 절 구성
-    If excelConditionIndex > 0 Then
-        excelWhereClause = " WHERE " & Join(excelWhereConditions, " AND ")
-    End If
-
-    ' 전체 데이터 조회 (페이징 없이)
-    Dim excelSQL, excelRS
-    excelSQL = "SELECT vr.request_id, vr.request_date, vr.user_id, vr.title, vr.start_date, vr.end_date, " & _
-               "vr.start_location, vr.destination, vr.distance, vr.toll_fee, vr.parking_fee, " & _
-               "vr.purpose, vr.approval_status, vr.created_at, " & _
-               "u.name AS user_name, d.name AS department_name " & _
-               "FROM " & dbSchema & ".VehicleRequests vr " & _
-               "LEFT JOIN " & dbSchema & ".Users u ON vr.user_id = u.user_id " & _
-               "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
-               IIf(excelWhereClause <> "", " " & excelWhereClause, "") & " " & _
-               "ORDER BY vr.start_date DESC"
-
-    Set excelRS = db99.Execute(excelSQL)
-
-    ' 엑셀 파일 헤더 설정
-    Response.ContentType = "application/vnd.ms-excel"
-    Response.AddHeader "Content-Disposition", "attachment; filename=vehicle_requests_" & Replace(Replace(Replace(Now(), "/", ""), ":", ""), " ", "_") & ".xls"
-    Response.CharSet = "utf-8"
-%>
-<html>
-<head>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-</head>
-<body>
-<table border="1">
-    <tr>
-        <th>신청자</th>
-        <th>부서</th>
-        <th>제목</th>
-        <th>시작일</th>
-        <th>종료일</th>
-        <th>출발지</th>
-        <th>목적지</th>
-        <th>운행거리(km)</th>
-        <th>통행료</th>
-        <th>주차비</th>
-        <th>업무목적</th>
-        <th>승인상태</th>
-        <th>신청일</th>
-    </tr>
-    <% Do While Not excelRS.EOF %>
-    <tr>
-        <td><%= excelRS("user_name") %></td>
-        <td><%= IIf(IsNull(excelRS("department_name")), "-", excelRS("department_name")) %></td>
-        <td><%= excelRS("title") %></td>
-        <td><%= FormatDateTime(excelRS("start_date"), 2) %></td>
-        <td><%= FormatDateTime(excelRS("end_date"), 2) %></td>
-        <td><%= excelRS("start_location") %></td>
-        <td><%= excelRS("destination") %></td>
-        <td><%= FormatNumber(excelRS("distance")) %></td>
-        <td><%= FormatNumber(excelRS("toll_fee")) %></td>
-        <td><%= FormatNumber(excelRS("parking_fee")) %></td>
-        <td><%= excelRS("purpose") %></td>
-        <td><%= excelRS("approval_status") %></td>
-        <td><%= FormatDateTime(excelRS("created_at"), 2) %></td>
-    </tr>
-    <% 
-    excelRS.MoveNext
-    Loop
-    %>
-</table>
-</body>
-</html>
-<%
-    ' 사용한 객체 해제
-    If Not excelRS Is Nothing Then
-        If excelRS.State = 1 Then
-            excelRS.Close
-        End If
-        Set excelRS = Nothing
-    End If
-    Response.End
-End If
-
-' 차량 이용 신청 삭제 처리
+' 카드 사용 내역 삭제 처리
 If Request.QueryString("action") = "delete" And Request.QueryString("id") <> "" Then
     Dim deleteId
     deleteId = PreventSQLInjection(Request.QueryString("id"))
     
     ' 삭제 쿼리 실행
     Dim deleteSQL
-    deleteSQL = "DELETE FROM " & dbSchema & ".VehicleRequests WHERE request_id = " & deleteId
+    deleteSQL = "DELETE FROM " & dbSchema & ".CardUsage WHERE usage_id = " & deleteId
     
     On Error Resume Next
     db.Execute(deleteSQL)
     
     If Err.Number <> 0 Then
-        Response.Write("<script>alert('차량 이용 신청 삭제 중 오류가 발생했습니다.'); window.location.href='admin_vehicle_requests.asp';</script>")
+        Response.Write("<script>alert('카드 사용 내역 삭제 중 오류가 발생했습니다.'); window.location.href='admin_card_usage.asp';</script>")
     Else
         ' 활동 로그 기록
-        LogActivity Session("user_id"), "차량신청삭제", "차량 이용 신청 삭제 (ID: " & deleteId & ")"
-        Response.Write("<script>alert('차량 이용 신청이 삭제되었습니다.'); window.location.href='admin_vehicle_requests.asp';</script>")
+        LogActivity Session("user_id"), "카드사용내역삭제", "카드 사용 내역 삭제 (ID: " & deleteId & ")"
+        Response.Write("<script>alert('카드 사용 내역이 삭제되었습니다.'); window.location.href='admin_card_usage.asp';</script>")
     End If
     On Error GoTo 0
     Response.End
@@ -187,17 +65,17 @@ Dim conditionIndex : conditionIndex = 0
 
 ' 키워드 검색 조건
 If searchKeyword <> "" Then
-    If searchField = "user_id" Then
+    If searchField = "card_id" Then
+        ReDim Preserve whereConditions(conditionIndex)
+        whereConditions(conditionIndex) = "ca.issuer LIKE '%" & PreventSQLInjection(searchKeyword) & "%'"
+        conditionIndex = conditionIndex + 1
+    ElseIf searchField = "user_id" Then
         ReDim Preserve whereConditions(conditionIndex)
         whereConditions(conditionIndex) = "u.name LIKE '%" & PreventSQLInjection(searchKeyword) & "%'"
         conditionIndex = conditionIndex + 1
-    ElseIf searchField = "destination" Then
+    ElseIf searchField = "expense_category_id" Then
         ReDim Preserve whereConditions(conditionIndex)
-        whereConditions(conditionIndex) = "vr.destination LIKE '%" & PreventSQLInjection(searchKeyword) & "%'"
-        conditionIndex = conditionIndex + 1
-    ElseIf searchField = "purpose" Then
-        ReDim Preserve whereConditions(conditionIndex)
-        whereConditions(conditionIndex) = "vr.purpose LIKE '%" & PreventSQLInjection(searchKeyword) & "%'"
+        whereConditions(conditionIndex) = "cat.type_name LIKE '%" & PreventSQLInjection(searchKeyword) & "%'"
         conditionIndex = conditionIndex + 1
     End If
 End If
@@ -205,13 +83,13 @@ End If
 ' 날짜 범위 검색 조건
 If IsDate(searchDateFrom) Then
     ReDim Preserve whereConditions(conditionIndex)
-    whereConditions(conditionIndex) = "vr.departure_date >= '" & CDate(searchDateFrom) & "'"
+    whereConditions(conditionIndex) = "cu.usage_date >= '" & CDate(searchDateFrom) & "'"
     conditionIndex = conditionIndex + 1
 End If
 
 If IsDate(searchDateTo) Then
     ReDim Preserve whereConditions(conditionIndex)
-    whereConditions(conditionIndex) = "vr.departure_date <= '" & CDate(searchDateTo) & " 23:59:59'"
+    whereConditions(conditionIndex) = "cu.usage_date <= '" & CDate(searchDateTo) & " 23:59:59'"
     conditionIndex = conditionIndex + 1
 End If
 
@@ -223,30 +101,65 @@ End If
 ' 전체 레코드 수
 Dim countSQL, countRS
 countSQL = "SELECT COUNT(*) AS cnt " & _
-           "FROM " & dbSchema & ".VehicleRequests vr " & _
-           "LEFT JOIN " & dbSchema & ".Users u ON vr.user_id = u.user_id " & _
+           "FROM " & dbSchema & ".CardUsage cu " & _
+           "LEFT JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
+           "LEFT JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
+           "LEFT JOIN " & dbSchema & ".CardAccountTypes cat ON cu.expense_category_id = cat.account_type_id " & _
            IIf(whereClause <> "", " " & whereClause, "")
-
 
 Set countRS = db99.Execute(countSQL)
 totalCount = countRS("cnt")
 totalPages = (totalCount + pageSize - 1) \ pageSize
 
-' 차량 이용 신청 목록 조회
+' 카드 사용 내역 목록 조회
 Dim listSQL, listRS
 listSQL = "SELECT * FROM (" & _
           "SELECT TOP " & pageSize & " * FROM (" & _
-          "SELECT TOP " & (pageNo * pageSize) & " vr.request_id, vr.request_date, vr.user_id, vr.start_date, vr.end_date, " & _
-          "vr.destination, vr.purpose, vr.approval_status, " & _
-          "vr.created_at, u.name AS user_name " & _
-          "FROM " & dbSchema & ".VehicleRequests vr " & _
-          "LEFT JOIN " & dbSchema & ".Users u ON vr.user_id = u.user_id " & _
+          "SELECT TOP " & (pageNo * pageSize) & " cu.usage_id, cu.user_id, cu.title, ca.account_name as card_id, ca.issuer as issuer, cu.department_id, " & _
+          "cu.expense_category_id as account_type_id, cu.usage_date, cu.store_name, cu.amount, cu.purpose, " & _
+          "cu.linked_table, cu.linked_id, cu.receipt_file, cu.created_at, cu.approval_status, " & _
+          "u.name AS user_name " & _
+          "FROM " & dbSchema & ".CardUsage cu " & _
+          "LEFT JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
+          "LEFT JOIN " & dbSchema & ".CardAccountTypes cat ON cu.expense_category_id = cat.account_type_id " & _
+          "LEFT JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
           IIf(whereClause <> "", " " & whereClause, "") & " " & _
-          "ORDER BY vr.request_date DESC) AS T1 " & _
-          "ORDER BY request_date ASC) AS T2 " & _
-          "ORDER BY request_date DESC"
+          "ORDER BY cu.usage_date DESC) AS T1 " & _
+          "ORDER BY usage_date ASC) AS T2 " & _
+          "ORDER BY usage_date DESC"
 
 Set listRS = db99.Execute(listSQL)
+
+' 지출 카테고리 이름 가져오기
+Function GetCategoryName(categoryId)
+    If IsNull(categoryId) Or categoryId = "" Then
+        GetCategoryName = "-"
+        Exit Function
+    End If
+    
+    Dim categoryName, catSQL, catRS
+    catSQL = "SELECT type_name FROM " & dbSchema & ".CardAccountTypes WHERE account_type_id = '" & categoryId & "'"
+    
+    On Error Resume Next
+    Set catRS = db99.Execute(catSQL)
+    
+    If Err.Number = 0 And Not catRS.EOF Then
+        categoryName = catRS("type_name")
+    Else
+        categoryName = categoryId
+    End If
+    
+    If Not catRS Is Nothing Then
+        If catRS.State = 1 Then
+            catRS.Close
+        End If
+        Set catRS = Nothing
+    End If
+    
+    GetCategoryName = categoryName
+End Function
+
+
 
 ' 승인 상태 표시
 Function GetApprovalStatusBadge(status)
@@ -257,8 +170,6 @@ Function GetApprovalStatusBadge(status)
             GetApprovalStatusBadge = "<span class=""badge bg-warning"">대기</span>"
         Case "반려"
             GetApprovalStatusBadge = "<span class=""badge bg-danger"">반려</span>"
-        Case Else
-            GetApprovalStatusBadge = "<span class=""badge bg-secondary"">미정</span>"
     End Select
 End Function
 %>
@@ -404,17 +315,6 @@ End Function
     box-shadow: 0 4px 12px rgba(231,76,60,0.2);
 }
 
-.btn-success {
-    background: linear-gradient(to right, #28a745, #20c997);
-    border: none;
-    color: white;
-}
-
-.btn-success:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(40,167,69,0.2);
-}
-
 .btn-sm {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
@@ -537,10 +437,10 @@ End Function
             <a href="admin_users.asp" class="admin-nav-item">
                 <i class="fas fa-users"></i>사용자 관리
             </a>
-            <a href="admin_card_usage.asp" class="admin-nav-item">
+            <a href="admin_card_usage.asp" class="admin-nav-item active">
                 <i class="fas fa-receipt"></i>카드 사용 내역 관리
             </a>
-            <a href="admin_vehicle_requests.asp" class="admin-nav-item active">
+            <a href="admin_vehicle_requests.asp" class="admin-nav-item">
                 <i class="fas fa-car"></i>차량 이용 신청 관리
             </a>
             <a href="admin_approvals.asp" class="admin-nav-item">
@@ -552,24 +452,24 @@ End Function
     <!-- 페이지 헤더 -->
     <div class="page-header">
         <h2 class="page-title">
-            <i class="fas fa-car me-2"></i>차량 이용 신청 관리
+            <i class="fas fa-receipt me-2"></i>카드 사용 내역 관리
         </h2>
     </div>
 
     <!-- 검색 섹션 -->
     <div class="search-section">
         <div class="search-title">
-            <i class="fas fa-search me-2"></i>차량 이용 신청 검색
+            <i class="fas fa-search me-2"></i>카드 사용 내역 검색
         </div>
-        <form action="admin_vehicle_requests.asp" method="get">
+        <form action="admin_card_usage.asp" method="get">
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">검색 필드</label>
                     <select name="field" class="form-select">
                         <option value="">전체</option>
-                        <option value="user_id" <% If searchField = "user_id" Then %>selected<% End If %>>신청자</option>
-                        <option value="destination" <% If searchField = "destination" Then %>selected<% End If %>>목적지</option>
-                        <option value="purpose" <% If searchField = "purpose" Then %>selected<% End If %>>목적</option>
+                        <option value="user_id" <% If searchField = "user_id" Then %>selected<% End If %>>사용자</option>
+                        <option value="card_id" <% If searchField = "card_id" Then %>selected<% End If %>>카드</option>
+                        <option value="expense_category_id" <% If searchField = "expense_category_id" Then %>selected<% End If %>>지출 카테고리</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -586,29 +486,24 @@ End Function
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary flex-fill">
-                            <i class="fas fa-search me-1"></i>검색
-                        </button>
-                        <button type="button" class="btn btn-success" onclick="exportToExcel()">
-                            <i class="fas fa-file-excel me-1"></i>엑셀
-                        </button>
-                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i>검색
+                    </button>
                 </div>
             </div>
         </form>
     </div>
 
-    <!-- 차량 이용 신청 목록 -->
+    <!-- 카드 사용 내역 목록 -->
     <div class="table-section">
         <div class="table-title">
-            <i class="fas fa-list me-2"></i>차량 이용 신청 목록 (총 <%= totalCount %>개)
+            <i class="fas fa-list me-2"></i>카드 사용 내역 목록 (총 <%= totalCount %>개)
         </div>
         
         <% If listRS.EOF Then %>
         <div class="empty-state">
-            <i class="fas fa-car"></i>
-            <h5>등록된 차량 이용 신청이 없습니다</h5>
+            <i class="fas fa-receipt"></i>
+            <h5>등록된 카드 사용 내역이 없습니다</h5>
             <p>검색 조건을 변경해보세요.</p>
         </div>
         <% Else %>
@@ -616,12 +511,12 @@ End Function
             <table class="table">
                 <thead>
                     <tr>
-                        <th style="text-align: center;">신청자</th>
-                        <th style="text-align: center;">신청일</th>
-                        <th style="text-align: center;">출발일</th>
-                        <th style="text-align: center;">반납일</th>
-                        <th style="text-align: center;">목적지</th>
-                        <th style="text-align: center;">목적</th>
+                        <th style="text-align: center;">사용자</th>
+                        <th style="text-align: center;">카드</th>
+                        <th style="text-align: center;">사용일</th>
+                        <th style="text-align: center;">사용처</th>
+                        <th style="text-align: center;">금액</th>
+                        <th style="text-align: center;">계정구분</th>
                         <th style="text-align: center;">승인상태</th>
                         <th style="text-align: center;">관리</th>
                     </tr>
@@ -630,17 +525,17 @@ End Function
                     <% Do While Not listRS.EOF %>
                     <tr>
                         <td style="text-align: center;"><strong><%= listRS("user_name") %></strong></td>
-                        <td style="text-align: center;"><%= FormatDateTime(listRS("request_date"), 2) %></td>
-                        <td style="text-align: center;"><%= FormatDateTime(listRS("start_date"), 2) %></td>
-                        <td style="text-align: center;"><%= FormatDateTime(listRS("end_date"), 2) %></td>
-                        <td style="text-align: center;"><%= listRS("destination") %></td>
-                        <td style="text-align: center;"><%= listRS("purpose") %></td>
+                        <td style="text-align: center;"><%= listRS("card_id") %><br><%= listRS("issuer") %></td>
+                        <td style="text-align: center;"><%= FormatDateTime(listRS("usage_date"), 2) %></td>
+                        <td style="text-align: center;"><%= listRS("store_name") %></td>
+                        <td style="text-align: center;"><strong><%= FormatCurrency(listRS("amount")) %></strong></td>
+                        <td style="text-align: center;"><%= GetCategoryName(listRS("account_type_id")) %></td>
                         <td style="text-align: center;"><%= GetApprovalStatusBadge(listRS("approval_status")) %></td>
                         <td style="text-align: center;">
-                            <a href="admin_vehicle_request_view.asp?id=<%= listRS("request_id") %>" class="btn btn-sm btn-primary">
+                            <a href="admin_card_usage_view.asp?id=<%= listRS("usage_id") %>" class="btn btn-sm btn-primary">
                                 <i class="fas fa-eye"></i> 상세
                             </a>
-                            <button class="btn btn-sm btn-danger" data-request-id="<%= listRS("request_id") %>" onclick="confirmDelete(this.getAttribute('data-request-id'))">
+                            <button class="btn btn-sm btn-danger" onclick="confirmDelete('<%= listRS("usage_id") %>')">
                                 <i class="fas fa-trash"></i> 삭제
                             </button>
                         </td>
@@ -659,7 +554,7 @@ End Function
             <ul class="pagination justify-content-center">
                 <% If pageNo > 1 Then %>
                 <li class="page-item">
-                    <a class="page-link" href="admin_vehicle_requests.asp?page=<%= pageNo - 1 %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>">
+                    <a class="page-link" href="admin_card_usage.asp?page=<%= pageNo - 1 %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>">
                         <i class="fas fa-chevron-left"></i> 이전
                     </a>
                 </li>
@@ -682,13 +577,13 @@ End Function
                 For i = startPage To endPage
                 %>
                 <li class="page-item <% If i = pageNo Then %>active<% End If %>">
-                    <a class="page-link" href="admin_vehicle_requests.asp?page=<%= i %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>"><%= i %></a>
+                    <a class="page-link" href="admin_card_usage.asp?page=<%= i %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>"><%= i %></a>
                 </li>
                 <% Next %>
                 
                 <% If pageNo < totalPages Then %>
                 <li class="page-item">
-                    <a class="page-link" href="admin_vehicle_requests.asp?page=<%= pageNo + 1 %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>">
+                    <a class="page-link" href="admin_card_usage.asp?page=<%= pageNo + 1 %>&field=<%= searchField %>&keyword=<%= searchKeyword %>&date_from=<%= searchDateFrom %>&date_to=<%= searchDateTo %>">
                         다음 <i class="fas fa-chevron-right"></i>
                     </a>
                 </li>
@@ -702,24 +597,12 @@ End Function
 
 <script>
 function confirmDelete(id) {
-    if (confirm('정말로 이 차량 이용 신청을 삭제하시겠습니까?')) {
-        window.location.href = "admin_vehicle_requests.asp?action=delete&id=" + id;
+    if (confirm('\uc815\ub9d0\ub85c \uc774 \uce74\ub4dc \uc0ac\uc6a9 \ub0b4\uc5ed\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?')) {
+        window.location.href = "admin_card_usage.asp?action=delete&id=" + id;
     }
 }
-
-function exportToExcel() {
-    // 현재 검색 조건을 가져와서 엑셀 다운로드 URL 생성
-    const urlParams = new URLSearchParams(window.location.search);
-    const field = urlParams.get('field') || '';
-    const keyword = urlParams.get('keyword') || '';
-    const dateFrom = urlParams.get('date_from') || '';
-    const dateTo = urlParams.get('date_to') || '';
-    
-    const excelUrl = `admin_vehicle_requests.asp?action=excel&field=${encodeURIComponent(field)}&keyword=${encodeURIComponent(keyword)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
-    
-    window.location.href = excelUrl;
-}
 </script>
+
 <%
 ' 사용한 객체 해제
 If Not listRS Is Nothing Then

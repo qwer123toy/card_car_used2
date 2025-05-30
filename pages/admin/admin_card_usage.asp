@@ -18,6 +18,125 @@ If Not IsAdmin() Then
     Response.End
 End If
 
+' 엑셀 다운로드 처리
+If Request.QueryString("action") = "excel" Then
+    ' 검색 조건 가져오기
+    Dim excelSearchKeyword, excelSearchField, excelSearchDateFrom, excelSearchDateTo, excelWhereClause
+    excelSearchKeyword = Trim(Request.QueryString("keyword"))
+    excelSearchField = Request.QueryString("field")
+    excelSearchDateFrom = Request.QueryString("date_from")
+    excelSearchDateTo = Request.QueryString("date_to")
+
+    excelWhereClause = ""
+    Dim excelWhereConditions : excelWhereConditions = Array()
+    Dim excelConditionIndex : excelConditionIndex = 0
+
+    ' 키워드 검색 조건
+    If excelSearchKeyword <> "" Then
+        If excelSearchField = "card_id" Then
+            ReDim Preserve excelWhereConditions(excelConditionIndex)
+            excelWhereConditions(excelConditionIndex) = "ca.issuer LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
+            excelConditionIndex = excelConditionIndex + 1
+        ElseIf excelSearchField = "user_id" Then
+            ReDim Preserve excelWhereConditions(excelConditionIndex)
+            excelWhereConditions(excelConditionIndex) = "u.name LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
+            excelConditionIndex = excelConditionIndex + 1
+        ElseIf excelSearchField = "expense_category_id" Then
+            ReDim Preserve excelWhereConditions(excelConditionIndex)
+            excelWhereConditions(excelConditionIndex) = "cat.type_name LIKE '%" & PreventSQLInjection(excelSearchKeyword) & "%'"
+            excelConditionIndex = excelConditionIndex + 1
+        End If
+    End If
+
+    ' 날짜 범위 검색 조건
+    If IsDate(excelSearchDateFrom) Then
+        ReDim Preserve excelWhereConditions(excelConditionIndex)
+        excelWhereConditions(excelConditionIndex) = "cu.usage_date >= '" & CDate(excelSearchDateFrom) & "'"
+        excelConditionIndex = excelConditionIndex + 1
+    End If
+
+    If IsDate(excelSearchDateTo) Then
+        ReDim Preserve excelWhereConditions(excelConditionIndex)
+        excelWhereConditions(excelConditionIndex) = "cu.usage_date <= '" & CDate(excelSearchDateTo) & " 23:59:59'"
+        excelConditionIndex = excelConditionIndex + 1
+    End If
+
+    ' WHERE 절 구성
+    If excelConditionIndex > 0 Then
+        excelWhereClause = " WHERE " & Join(excelWhereConditions, " AND ")
+    End If
+
+    ' 전체 데이터 조회 (페이징 없이)
+    Dim excelSQL, excelRS
+    excelSQL = "SELECT cu.usage_id, cu.user_id, cu.title, ca.account_name as card_id, ca.issuer as issuer, cu.department_id, " & _
+               "cu.expense_category_id as account_type_id, cu.usage_date, cu.store_name, cu.amount, cu.purpose, " & _
+               "cu.linked_table, cu.linked_id, cu.receipt_file, cu.created_at, cu.approval_status, " & _
+               "u.name AS user_name, cat.type_name AS category_name " & _
+               "FROM " & dbSchema & ".CardUsage cu " & _
+               "LEFT JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
+               "LEFT JOIN " & dbSchema & ".CardAccountTypes cat ON cu.expense_category_id = cat.account_type_id " & _
+               "LEFT JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
+               IIf(excelWhereClause <> "", " " & excelWhereClause, "") & " " & _
+               "ORDER BY cu.usage_date DESC"
+
+    Set excelRS = db99.Execute(excelSQL)
+
+    ' 엑셀 파일 헤더 설정
+    Response.ContentType = "application/vnd.ms-excel"
+    Response.AddHeader "Content-Disposition", "attachment; filename=card_usage_" & Replace(Replace(Replace(Now(), "/", ""), ":", ""), " ", "_") & ".xls"
+    Response.CharSet = "utf-8"
+%>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+<table border="1">
+    <tr>
+        <th>사용자</th>
+        <th>제목</th>
+        <th>카드</th>
+        <th>발급사</th>
+        <th>사용일</th>
+        <th>사용처</th>
+        <th>금액</th>
+        <th>계정구분</th>
+        <th>사용목적</th>
+        <th>승인상태</th>
+        <th>등록일</th>
+    </tr>
+    <% Do While Not excelRS.EOF %>
+    <tr>
+        <td><%= excelRS("user_name") %></td>
+        <td><%= excelRS("title") %></td>
+        <td><%= excelRS("card_id") %></td>
+        <td><%= excelRS("issuer") %></td>
+        <td><%= FormatDateTime(excelRS("usage_date"), 2) %></td>
+        <td><%= excelRS("store_name") %></td>
+        <td><%= FormatNumber(excelRS("amount")) %></td>
+        <td><%= IIf(IsNull(excelRS("category_name")), "-", excelRS("category_name")) %></td>
+        <td><%= excelRS("purpose") %></td>
+        <td><%= excelRS("approval_status") %></td>
+        <td><%= FormatDateTime(excelRS("created_at"), 2) %></td>
+    </tr>
+    <% 
+    excelRS.MoveNext
+    Loop
+    %>
+</table>
+</body>
+</html>
+<%
+    ' 사용한 객체 해제
+    If Not excelRS Is Nothing Then
+        If excelRS.State = 1 Then
+            excelRS.Close
+        End If
+        Set excelRS = Nothing
+    End If
+    Response.End
+End If
+
 ' 카드 사용 내역 삭제 처리
 If Request.QueryString("action") = "delete" And Request.QueryString("id") <> "" Then
     Dim deleteId
@@ -158,8 +277,6 @@ Function GetCategoryName(categoryId)
     
     GetCategoryName = categoryName
 End Function
-
-
 
 ' 승인 상태 표시
 Function GetApprovalStatusBadge(status)
@@ -313,6 +430,17 @@ End Function
 .btn-danger:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(231,76,60,0.2);
+}
+
+.btn-success {
+    background: linear-gradient(to right, #28a745, #20c997);
+    border: none;
+    color: white;
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40,167,69,0.2);
 }
 
 .btn-sm {
@@ -486,9 +614,14 @@ End Function
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-search me-1"></i>검색
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-fill">
+                            <i class="fas fa-search me-1"></i>검색
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="exportToExcel()">
+                            <i class="fas fa-file-excel me-1"></i>엑셀
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -597,9 +730,22 @@ End Function
 
 <script>
 function confirmDelete(id) {
-    if (confirm('\uc815\ub9d0\ub85c \uc774 \uce74\ub4dc \uc0ac\uc6a9 \ub0b4\uc5ed\uc744 \uc0ad\uc81c\ud558\uc2dc\uaca0\uc2b5\ub2c8\uae4c?')) {
+    if (confirm('정말로 이 카드 사용 내역을 삭제하시겠습니까?')) {
         window.location.href = "admin_card_usage.asp?action=delete&id=" + id;
     }
+}
+
+function exportToExcel() {
+    // 현재 검색 조건을 가져와서 엑셀 다운로드 URL 생성
+    const urlParams = new URLSearchParams(window.location.search);
+    const field = urlParams.get('field') || '';
+    const keyword = urlParams.get('keyword') || '';
+    const dateFrom = urlParams.get('date_from') || '';
+    const dateTo = urlParams.get('date_to') || '';
+    
+    const excelUrl = `admin_card_usage.asp?action=excel&field=${encodeURIComponent(field)}&keyword=${encodeURIComponent(keyword)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
+    
+    window.location.href = excelUrl;
 }
 </script>
 

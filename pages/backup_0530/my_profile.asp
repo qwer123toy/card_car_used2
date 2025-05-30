@@ -453,7 +453,7 @@ End If
                             <small class="text-muted">정보 수정을 위해 현재 비밀번호를 입력하세요.</small>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('정말 프로필을 수정하시겠습니까?');">프로필 수정</button>
+                        <button type="submit" class="btn btn-primary btn-block">프로필 수정</button>
                     </form>
                 </div>
             </div>
@@ -480,7 +480,7 @@ End If
                             <input type="password" name="confirm_password" class="form-input" required>
                         </div>
                         
-                        <button type="submit" class="btn btn-primary btn-block" onclick="return confirm('정말 비밀번호를 변경하시겠습니까?');">비밀번호 변경</button>
+                        <button type="submit" class="btn btn-primary btn-block">비밀번호 변경</button>
                     </form>
                 </div>
             </div>

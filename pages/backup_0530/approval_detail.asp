@@ -36,7 +36,7 @@ isVehicleRequest = (docType = "VehicleRequests")
 
 If isCardUsage Then
     ' 카드 사용 내역 조회
-    usageSQL = "SELECT cu.*, ca.account_name AS account_name, ca.issuer AS issuer, u.name AS user_name, u.department_id, " & _
+    usageSQL = "SELECT cu.*, ca.account_name, u.name AS user_name, u.department_id, " & _
             "d.name AS department_name, u.job_grade, j.name AS job_grade_name, " & _
             "u.user_id AS requester_id, u.name AS requester_name, " & _
             "d.department_id AS requester_dept_id, " & _
@@ -768,10 +768,10 @@ End If
                                 <tr>
                                     <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">결재 처리</td>
                                     <td class="approval-cell" colspan="4" style="text-align: center; padding: 1.5rem;">
-                                        <button type="submit" name="action" value="승인" class="btn btn-success me-2" onclick="return confirm('정말 승인 처리하시겠습니까?');">
+                                        <button type="submit" name="action" value="승인" class="btn btn-success me-2">
                                             <i class="fas fa-check me-2"></i> 승인
                                         </button>
-                                        <button type="submit" name="action" value="반려" class="btn btn-danger me-2" onclick="return confirm('정말 반려 처리하시겠습니까? 초기 결재자까지 모두 초기화 됩니다.');">
+                                        <button type="submit" name="action" value="반려" class="btn btn-danger me-2">
                                             <i class="fas fa-times me-2"></i> 반려
                                         </button>
                                         <a href="dashboard.asp" class="btn btn-secondary">
@@ -952,14 +952,11 @@ End If
                                                 End If
                                             End Function
                                             
-                                            Dim userName, deptName, jobName, cardaccountname, cardissuer
+                                            Dim userName, deptName, jobName
                                             userName = CardSafeField(usageRS, "user_name")
                                             deptName = CardSafeField(usageRS, "department_name")
                                             jobName = CardSafeField(usageRS, "job_grade_name")
-                                            cardaccountname = CardSafeField(usageRS, "account_name")
                                             
-                                            
-
                                             Response.Write userName
                                             
                                             If deptName <> "" Or jobName <> "" Then
@@ -1032,7 +1029,7 @@ End If
                                                     %>
                                                 </select>
                                             <% Else %>
-                                                <%= CardSafeField(usageRS, "account_name") %>  (<%= CardSafeField(usageRS, "issuer") %>)
+                                                <%= CardSafeField(usageRS, "account_name") %>
                                             <% End If %>
                                         </td>
                                         <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">사용일자</td>
@@ -1060,16 +1057,16 @@ End If
                                         <td class="approval-cell" style="width: 25%;">
                                             <select class="form-select" name="card_account_type_id" required>
                                                 <option value="">선택해주세요</option>
-                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                                  
                                             <% 
-                                                Dim cardAccountTypeName
-                                                cardAccountTypeName = CardSafeField(usageRS, "expense_category_id")
+                                                Dim cardAccountName
+                                                cardAccountName = CardSafeField(usageRS, "expense_category_id")
                                                 Dim cardAccountTypeSQL, cardAccountTypeRS
                                                     cardAccountTypeSQL = "SELECT account_type_id, type_name FROM " & dbSchema & ".CardAccountTypes"
                                                     Set cardAccountTypeRS = db.Execute(cardAccountTypeSQL)
                                                     Do While Not cardAccountTypeRS.EOF
                                                     %>
-                                                    <option value="<%= cardAccountTypeRS("account_type_id") %>" <%= IIf(CStr(cardAccountTypeRS("account_type_id")) = CStr(cardAccountTypeName), "selected", "") %>>
+                                                    <option value="<%= cardAccountTypeRS("account_type_id") %>" <%= IIf(CStr(cardAccountTypeRS("account_type_id")) = CStr(cardAccountName), "selected", "") %>>
                                                         <%= cardAccountTypeRS("type_name") %>
                                                     </option>
                                                     <%
@@ -1077,9 +1074,7 @@ End If
                                                     Loop
                                                 %>
                                             </select> 
-                                            <% Else %>
-                                                <%= CardSafeField(usageRS, "account_name") %>
-                                            <% End If %>
+
                                         </td>
                                         <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">판관/제조</td>
                                         <td class="approval-cell" style="width: 25%;">

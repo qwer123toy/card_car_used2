@@ -9,7 +9,7 @@ Response.CharSet = "utf-8"
 <%
 ' 로그인 체크
 If Not IsAuthenticated() Then
-    RedirectTo("/contents/card_car_used/index.asp")
+    RedirectTo("/index.asp")
 End If
 
 ' 파라미터 검증
@@ -36,14 +36,16 @@ isVehicleRequest = (docType = "VehicleRequests")
 
 If isCardUsage Then
     ' 카드 사용 내역 조회
-    usageSQL = "SELECT cu.*, ca.account_name, u.name AS user_name, u.department_id, " & _
-            "d.name AS department_name, u.job_grade, j.name AS job_grade_name, " & _
+    usageSQL = "SELECT cu.*, ca.account_name, ca.issuer, u.name AS user_name, u.department_id, " & _
+            "d.name AS department_name, u.job_grade, j.name AS job_grade_name, cat.type_name AS account_type_name, ct.type_name AS cost_type_name, " & _
             "u.user_id AS requester_id, u.name AS requester_name, " & _
             "d.department_id AS requester_dept_id, " & _
             "cu.created_at, cu.approval_status " & _
             "FROM " & dbSchema & ".CardUsage cu " & _
             "JOIN " & dbSchema & ".CardAccount ca ON cu.card_id = ca.card_id " & _
             "JOIN " & dbSchema & ".Users u ON cu.user_id = u.user_id " & _
+            "JOIN " & dbSchema & ".CardAccountTypes cat ON cu.expense_category_id = cat.account_type_id " & _
+            "JOIN " & dbSchema & ".Cost_Type ct ON cu.cost_type_id = ct.cost_type_id " & _
             "LEFT JOIN " & dbSchema & ".Department d ON u.department_id = d.department_id " & _
             "LEFT JOIN " & dbSchema & ".Job_Grade j ON u.job_grade = j.job_grade_id " & _
             "WHERE cu.usage_id = ? "
@@ -725,6 +727,9 @@ End If
                 <i class="fas fa-list me-1"></i> 목록으로
             </a>
             <% End If %>
+            <button type="button" class="btn btn-primary btn-nav" onclick="printApproval()">
+                <i class="fas fa-print me-1"></i> 인쇄
+            </button>
             <a href="dashboard.asp" class="btn btn-secondary btn-nav">
                 <i class="fas fa-home me-1"></i> 대시보드
             </a>
@@ -765,10 +770,10 @@ End If
                                 <tr>
                                     <td class="approval-cell" style="background: #F8FAFC; font-weight: 600;">결재 처리</td>
                                     <td class="approval-cell" colspan="4" style="text-align: center; padding: 1.5rem;">
-                                        <button type="submit" name="action" value="승인" class="btn btn-success me-2">
+                                        <button type="submit" name="action" value="승인" class="btn btn-success me-2" onclick="return confirm('정말 승인 처리하시겠습니까?');">
                                             <i class="fas fa-check me-2"></i> 승인
                                         </button>
-                                        <button type="submit" name="action" value="반려" class="btn btn-danger me-2">
+                                        <button type="submit" name="action" value="반려" class="btn btn-danger me-2" onclick="return confirm('정말 반려 처리하시겠습니까? 초기 결재자까지 모두 초기화 됩니다.');">
                                             <i class="fas fa-times me-2"></i> 반려
                                         </button>
                                         <a href="dashboard.asp" class="btn btn-secondary">
@@ -783,6 +788,7 @@ End If
             </div>
         </div>
         <% End If %>
+    <div id="printArea">
 
         <!-- 결재선 -->
         <div class="card mb-2">
@@ -948,11 +954,15 @@ End If
                                                 End If
                                             End Function
                                             
-                                            Dim userName, deptName, jobName
+                                            Dim userName, deptName, jobName, cardaccountname, cardissuer, cardAccountTypeName, cardcosttypeame
                                             userName = CardSafeField(usageRS, "user_name")
                                             deptName = CardSafeField(usageRS, "department_name")
                                             jobName = CardSafeField(usageRS, "job_grade_name")
-                                            
+                                            cardaccountname = CardSafeField(usageRS, "account_name")
+                                            cardissuer = CardSafeField(usageRS, "issuer")
+                                            cardAccountTypeName = CardSafeField(usageRS, "account_type_name")
+                                            cardcosttypeName = CardSafeField(usageRS, "cost_type_name")
+
                                             Response.Write userName
                                             
                                             If deptName <> "" Or jobName <> "" Then
@@ -1025,7 +1035,7 @@ End If
                                                     %>
                                                 </select>
                                             <% Else %>
-                                                <%= CardSafeField(usageRS, "account_name") %>
+                                                <%= cardaccountname %> (<%= cardissuer %>)
                                             <% End If %>
                                         </td>
                                         <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">사용일자</td>
@@ -1048,6 +1058,62 @@ End If
                                             <% End If %>
                                         </td>
                                     </tr>
+                                    <tr>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">카드계정</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                            <select class="form-select" name="card_account_type_id" required>
+                                                <option value="">선택해주세요</option>
+
+                                            <% 
+                                                Dim cardAllAccountTypeName
+                                                cardAllAccountTypeName = CardSafeField(usageRS, "expense_category_id")
+                                                Dim cardAccountTypeSQL, cardAccountTypeRS
+                                                    cardAccountTypeSQL = "SELECT account_type_id, type_name FROM " & dbSchema & ".CardAccountTypes"
+                                                    Set cardAccountTypeRS = db.Execute(cardAccountTypeSQL)
+                                                    Do While Not cardAccountTypeRS.EOF
+                                                    %>
+                                                    <option value="<%= cardAccountTypeRS("account_type_id") %>" <%= IIf(CStr(cardAccountTypeRS("account_type_id")) = CStr(cardAllAccountTypeName), "selected", "") %>>
+                                                        <%= cardAccountTypeRS("type_name") %>
+                                                    </option>
+                                                    <%
+                                                        cardAccountTypeRS.MoveNext
+                                                    Loop
+                                                %>
+                                            </select> 
+                                            <% Else %>
+                                            <%= cardAccountTypeName %>
+                                          <% End If %>
+
+                                        </td>
+                                        <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">판관/제조</td>
+                                        <td class="approval-cell" style="width: 25%;">
+                                            <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
+                                            <select class="form-select" name="cost_type_id" required>
+                                                <option value="">선택해주세요</option>
+                                                  
+                                            <% 
+                                                Dim costTypeName    
+                                                costTypeName = CardSafeField(usageRS, "cost_type_id")
+                                                Dim costTypeSQL, costTypeRS
+                                                    costTypeSQL = "SELECT cost_type_id, type_name FROM " & dbSchema & ".Cost_Type"
+                                                    Set costTypeRS = db.Execute(costTypeSQL)
+                                                    Do While Not costTypeRS.EOF
+                                                    %>
+                                                    <option value="<%= costTypeRS("cost_type_id") %>" <%= IIf(CStr(costTypeRS("cost_type_id")) = CStr(costTypeName), "selected", "") %>>
+                                                        <%= costTypeRS("type_name") %>
+                                                    </option>
+                                                    <%
+                                                        costTypeRS.MoveNext
+                                                    Loop
+                                                %>
+                                            </select> 
+                                            <% Else %>
+                                            <%= cardcosttypeName %>
+                                            <% End If %>
+                                            </td>
+                                    </tr>
+                                    
                                     <tr>
                                         <td class="approval-cell" style="background: #F8FAFC; font-weight: 600; width: 25%;">사용처</td>
                                         <td class="approval-cell" style="width: 25%;">
@@ -1321,12 +1387,12 @@ End If
                                 </tbody>
                             </table>
                     <% End If %>
-                
+    </div> 
                 
                 <!-- 수정 버튼 -->
                 <% If usageRS("user_id") = Session("user_id") And (usageRS("approval_status") = "대기" Or usageRS("approval_status") = "반려") Then %>
                     <div class="text-center mt-4 pt-3" style="border-top: 1px solid #E9ECEF;">
-                        <button type="submit" class="btn btn-primary me-2">
+                        <button type="submit" class="btn btn-primary me-2" onclick="return confirm('정말 수정하시겠습니까?');">
                             <i class="fas fa-save me-1"></i> 수정
                         </button>
                         <a href="dashboard.asp" class="btn btn-secondary ms-2">
@@ -1351,6 +1417,296 @@ function formatAmount(input) {
     if (value) {
         input.value = new Intl.NumberFormat('ko-KR').format(value);
     }
+}
+
+function printApproval() {
+    const printArea = document.getElementById('printArea');
+    if (!printArea) {
+        alert('인쇄할 영역이 없습니다.');
+        return;
+    }
+
+    // 인쇄용 복사본 생성
+    const printAreaClone = printArea.cloneNode(true);
+    
+    // 입력 필드들의 값을 텍스트로 변환
+    const inputs = printAreaClone.querySelectorAll('input[type="text"], input[type="date"], input[type="number"]');
+    inputs.forEach(input => {
+        const span = document.createElement('span');
+        span.textContent = input.value || '-';
+        span.style.cssText = 'display: inline-block; padding: 5px; min-height: 20px;';
+        input.parentNode.replaceChild(span, input);
+    });
+    
+    // 텍스트에어리어의 값을 텍스트로 변환
+    const textareas = printAreaClone.querySelectorAll('textarea');
+    textareas.forEach(textarea => {
+        const div = document.createElement('div');
+        div.textContent = textarea.value || '-';
+        div.style.cssText = 'padding: 5px; min-height: 40px; white-space: pre-wrap;';
+        textarea.parentNode.replaceChild(div, textarea);
+    });
+    
+    // 셀렉트 박스의 선택된 값을 텍스트로 변환
+    const selects = printAreaClone.querySelectorAll('select');
+    selects.forEach(select => {
+        const span = document.createElement('span');
+        const selectedOption = select.options[select.selectedIndex];
+        span.textContent = selectedOption ? selectedOption.text : '-';
+        span.style.cssText = 'display: inline-block; padding: 5px; min-height: 20px;';
+        select.parentNode.replaceChild(span, select);
+    });
+    
+    // 버튼들 제거
+    const buttons = printAreaClone.querySelectorAll('button, .btn');
+    buttons.forEach(button => {
+        button.remove();
+    });
+
+    const printContents = printAreaClone.innerHTML;
+    const printWindow = window.open('', '', 'width=1200,height=900');
+
+    printWindow.document.write('<html><head><title>결재 문서 인쇄</title>');
+    printWindow.document.write('<style>');
+    printWindow.document.write(`
+        @media print {
+            @page {
+                margin: 15mm;
+                size: A4;
+            }
+        }
+        
+        body { 
+            font-family: 'Malgun Gothic', Arial, sans-serif; 
+            padding: 20px; 
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: none;
+            margin-bottom: 20px;
+            background: #fff;
+        }
+        
+        .card-body {
+            padding: 0;
+        }
+        
+        /* 결재선 테이블 스타일 */
+        .approval-line-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: fixed;
+        }
+        
+        .approval-cell {
+            border: 2px solid #000 !important;
+            padding: 8px !important;
+            text-align: center;
+            vertical-align: middle;
+            background: #fff !important;
+            font-size: 11px;
+            word-wrap: break-word;
+            height: auto;
+            min-height: 30px;
+        }
+        
+        /* 첫 번째 행 (직급) 스타일 */
+        .position-row .approval-cell {
+            height: 40px !important;
+            font-weight: 600;
+            color: #000 !important;
+            font-size: 12px;
+            background: #f8f9fa !important;
+        }
+        
+        /* 두 번째 행 (이름과 순서) 스타일 */
+        .name-row .approval-cell {
+            height: 100px !important;
+            position: relative;
+            padding: 10px 8px !important;
+        }
+        
+        .step-number {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: #000;
+            color: white;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .approver-name {
+            font-weight: 600;
+            color: #000;
+            font-size: 12px;
+            margin-top: 15px;
+            line-height: 1.2;
+        }
+        
+        .approval-status-info {
+            margin-top: 8px;
+        }
+        
+        .badge {
+            padding: 3px 6px;
+            font-weight: 500;
+            border-radius: 3px;
+            font-size: 10px;
+            border: 1px solid #000;
+            display: inline-block;
+            margin-bottom: 3px;
+        }
+        
+        .badge-success {
+            background: #fff !important;
+            color: #000 !important;
+            border: 1px solid #000 !important;
+        }
+        
+        .badge-danger {
+            background: #fff !important;
+            color: #000 !important;
+            border: 1px solid #000 !important;
+        }
+        
+        .badge-secondary {
+            background: #fff !important;
+            color: #000 !important;
+            border: 1px solid #000 !important;
+        }
+        
+        .approval-date {
+            font-size: 9px;
+            color: #000;
+            margin-top: 3px;
+        }
+        
+        .approval-comment {
+            font-size: 9px;
+            color: #000;
+            margin-top: 5px;
+            padding: 3px 5px;
+            background: #f8f9fa;
+            border-radius: 2px;
+            border-left: 2px solid #000;
+            text-align: left;
+        }
+        
+        /* 문서 내용 테이블 스타일 */
+        .approval-cell[style*="background: #F8FAFC"] {
+            background: #f8f9fa !important;
+            font-weight: 600;
+            color: #000 !important;
+        }
+        
+        /* 숨길 요소들 */
+        .btn, 
+        .form-control, 
+        .form-select,
+        .input-group-text,
+        .page-header, 
+        .alert,
+        input[type="text"],
+        input[type="date"],
+        textarea,
+        select,
+        button {
+            display: none !important;
+        }
+        
+        /* 텍스트 값만 표시 */
+        .approval-cell input[type="hidden"] {
+            display: none !important;
+        }
+        
+        /* 제목 스타일 */
+        h2, h3, h4, h5 {
+            color: #000;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        
+        /* 상태 배지 인쇄용 스타일 */
+        .bg-success, .bg-danger, .bg-secondary, .bg-primary {
+            background: #fff !important;
+            color: #000 !important;
+            border: 1px solid #000 !important;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+        }
+        
+        /* 금액 표시 스타일 */
+        .text-end {
+            text-align: right;
+        }
+        
+        /* 작은 텍스트 스타일 */
+        small {
+            font-size: 9px;
+            color: #666;
+        }
+        
+        /* 아이콘 숨기기 */
+        .fas, .fa {
+            display: none !important;
+        }
+        
+        /* 테이블 셀 내용 정렬 */
+        .approval-cell[colspan] {
+            text-align: left !important;
+            padding: 10px !important;
+        }
+        
+        /* 인쇄 시 페이지 나누기 방지 */
+        .approval-line-table {
+            page-break-inside: avoid;
+        }
+        
+        /* 여백 조정 */
+        .card-body {
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* 인쇄용 텍스트 스타일 */
+        .print-text {
+            display: inline-block;
+            padding: 5px;
+            min-height: 20px;
+            color: #000;
+        }
+    `);
+    printWindow.document.write('</style></head><body>');
+    
+    // 인쇄용 제목 추가
+    printWindow.document.write('<div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">');
+    printWindow.document.write('<h2 style="margin: 0; font-size: 18px; font-weight: 600;">지출결의서</h2>');
+    printWindow.document.write('</div>');
+    
+    printWindow.document.write(printContents);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // 인쇄 실행
+    setTimeout(function() {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
 }
 
 // 폼 제출 시 금액 콤마 제거

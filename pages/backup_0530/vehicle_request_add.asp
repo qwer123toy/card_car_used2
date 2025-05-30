@@ -372,7 +372,7 @@ On Error GoTo 0
                 
                 
                 <div class="shadcn-card-footer" style="margin-top: 1.5rem;">
-                    <button type="submit" class="shadcn-btn shadcn-btn-primary" onclick="return confirm('정말 등록하시겠습니까?');">등록하기</button>
+                    <button type="submit" class="shadcn-btn shadcn-btn-primary">등록하기</button>
                     <a href="vehicle_request.asp" class="shadcn-btn shadcn-btn-outline">취소</a>
                 </div>
             </form>

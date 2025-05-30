@@ -246,7 +246,7 @@ On Error GoTo 0
                 </div>
                 
                 <div class="shadcn-card-footer" style="margin-top: 1.5rem;">
-                    <button type="submit" class="shadcn-btn shadcn-btn-primary" onclick="return confirm('정말 수정하시겠습니까?');">수정하기</button>
+                    <button type="submit" class="shadcn-btn shadcn-btn-primary">수정하기</button>
                     <a href="vehicle_request_view.asp?id=<%= requestId %>" class="shadcn-btn shadcn-btn-outline">취소</a>
                 </div>
             </form>

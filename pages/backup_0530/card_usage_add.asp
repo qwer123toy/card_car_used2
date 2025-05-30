@@ -430,7 +430,7 @@ On Error GoTo 0
                 </div>
             <% End If %>
             
-            <form method="post" action="card_usage_add.asp" id="cardUsageForm" onsubmit="return confirm('카드 사용 내역을 등록하시겠습니까?');">
+            <form method="post" action="card_usage_add.asp" id="cardUsageForm">
                 <!-- 결재선 지정 영역 -->
                 <div class="mb-4">
                     <label class="form-label">결재선 지정</label>

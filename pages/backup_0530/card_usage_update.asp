@@ -24,7 +24,7 @@ If Request.ServerVariables("REQUEST_METHOD") <> "POST" Then
 End If
 
 ' 파라미터 받기
-Dim usageId, cardId, usageDate, amount, purpose, storeName, cardAccountType, title
+Dim usageId, cardId, usageDate, amount, purpose, storeName, cardAccountType
 usageId = Request.Form("usage_id")
 cardId = Request.Form("card_id")
 usageDate = Request.Form("usage_date")
@@ -33,10 +33,9 @@ purpose = Request.Form("purpose")
 storeName = Request.Form("store_name")
 cardAccountType = Request.Form("card_account_type_id")
 costType = Request.Form("cost_type_id")
-title = Request.Form("title")
 
 ' 필수 값 검증
-If usageId = "" Or cardId = "" Or usageDate = "" Or amount = "" Or purpose = "" Or storeName = "" Or cardAccountType = "" Or costType = "" Or title = "" Then
+If usageId = "" Or cardId = "" Or usageDate = "" Or amount = "" Or purpose = "" Or storeName = "" Or cardAccountType = "" Or costType = "" Then
     Response.Write "<script>alert('필수 항목이 누락되었습니다.'); history.back();</script>"
     Response.End
 End If
@@ -74,7 +73,6 @@ updateCardSQL = "UPDATE " & dbSchema & ".CardUsage SET " & _
                 "store_name = '" & PreventSQLInjection(storeName) & "', " & _
                 "expense_category_id = " & cardAccountType & ", " & _
                 "cost_type_id = " & costType & ", " & _
-                "title = '" & PreventSQLInjection(title) & "', " & _
                 "approval_status = '대기' " & _
                 "WHERE usage_id = " & usageId
 
